@@ -36,7 +36,6 @@
 목적: 복수 선택 결과를 안정적으로 출력하게 한다.
 설명: 구분자와 정렬 규칙을 명시한다.
 디자인 패턴: 모듈 싱글턴
-참조: docs/04_string_tricks/03_multi_choice_파서.md
 """
 
 from langchain_core.prompts import PromptTemplate

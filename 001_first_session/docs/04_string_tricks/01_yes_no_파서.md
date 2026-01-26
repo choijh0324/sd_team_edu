@@ -77,7 +77,6 @@ YES/NO는 **다른 프롬프트로 분기**하는 데 특히 유용합니다.
 목적: YES/NO 라우팅 값을 Enum으로 정의한다.
 설명: 결과에 따라 다른 프롬프트로 분기한다.
 디자인 패턴: Enum
-참조: docs/04_string_tricks/01_yes_no_파서.md
 """
 
 from enum import Enum

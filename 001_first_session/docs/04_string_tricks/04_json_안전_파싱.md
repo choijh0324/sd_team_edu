@@ -51,7 +51,6 @@ JSON 유도 프롬프트는 "스키마"와 "금지 규칙"을 매우 구체적�
 목적: JSON 형식만 출력하도록 프롬프트를 만든다.
 설명: 스키마와 금지 규칙을 명확히 전달한다.
 디자인 패턴: 모듈 싱글턴
-참조: docs/04_string_tricks/04_json_안전_파싱.md
 """
 
 from langchain_core.prompts import PromptTemplate
@@ -82,7 +81,48 @@ prompt = PromptTemplate(
 
 ---
 
-## 3) JSON 값을 기준으로 외부 API 호출하기
+## 3) Pydantic으로 JSON 스키마 검증하기
+
+JSON은 파싱 성공만으로는 안전하지 않습니다.  
+**Pydantic 모델 검증**을 추가하면 필드 누락/타입 오류를 조기에 발견할 수 있습니다.
+
+### Pydantic 검증 예시
+
+```python
+import json
+from typing import List
+from pydantic import BaseModel, Field
+
+
+class ItemSchema(BaseModel):
+    """주문 아이템 스키마."""
+
+    name: str = Field(..., description="상품명")
+    qty: int = Field(..., description="수량")
+
+
+class OrderSchema(BaseModel):
+    """주문 스키마."""
+
+    intent: str = Field(..., description="의도 라벨")
+    user_id: str = Field(..., description="사용자 ID")
+    items: List[ItemSchema] = Field(default_factory=list)
+
+
+def parse_and_validate(raw_text: str) -> OrderSchema:
+    """JSON을 파싱한 뒤 스키마로 검증한다."""
+    data = json.loads(raw_text)
+    return OrderSchema.model_validate(data)
+```
+
+**핵심 포인트**  
+
+- 파싱 성공 이후에 반드시 **모델 검증**을 수행한다.  
+- 검증 실패 시 재시도(05 문서)로 연결한다.  
+
+---
+
+## 4) JSON 값을 기준으로 외부 API 호출하기
 
 JSON은 **외부 시스템과 연동**하기 가장 적합한 형식입니다.  
 예를 들어 `intent` 값에 따라 다른 API를 호출하면, LLM 결과를 실제 서비스 흐름에 연결할 수 있습니다.
@@ -94,7 +134,6 @@ JSON은 **외부 시스템과 연동**하기 가장 적합한 형식입니다.
 목적: JSON 필드 값에 따라 외부 API를 호출한다.
 설명: intent 값으로 API 엔드포인트를 분기한다.
 디자인 패턴: Strategy
-참조: docs/04_string_tricks/04_json_안전_파싱.md
 """
 
 import json
@@ -149,15 +188,14 @@ class IntentApiDispatcher:
 
 ---
 
-JSON 출력이 깨지는 경우의 재시도/복구 전략은
-`docs/04_string_tricks/05_retry_logic.md`에서 통합적으로 설명합니다.
-해당 문서에서 **json-repair 적용 시점과 주의사항**도 함께 다룹니다.
+JSON 출력이 깨지는 경우의 재시도/복구 전략은 다음 챕터에서 알아보도록 하겠습니다.
 
 ---
 
-## 4) 구현 체크리스트
+## 5) 구현 체크리스트
 
 - JSON 스키마와 필수 키가 문서에 명확히 정의되었는가?
 - JSON 외 텍스트 금지 규칙이 프롬프트에 포함되었는가?
+- JSON 파싱 후 Pydantic 검증을 수행하는가?
 - 엄격 파싱 → json-repair → 재요청 순서가 준비되어 있는가?
 - intent 등 라우팅 필드를 기준으로 API 분기 로직이 있는가?

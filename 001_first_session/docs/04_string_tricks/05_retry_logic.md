@@ -145,8 +145,8 @@ class RetryFlow:
 
 ### 5-1. YES/NO 재시도
 
-**목표:** 기존 응답을 참고해 YES/NO만 반환.\n
-**전략:** 실패 응답과 질문을 함께 제공하고, \"YES 또는 NO만\"을 강하게 고정합니다.
+**목표:** 기존 응답을 참고해 YES/NO만 반환.
+**전략:** 실패 응답과 질문을 함께 제공하고, "YES 또는 NO만"을 강하게 고정합니다.
 
 ```text
 너는 이진 응답 복구기다.
@@ -156,24 +156,24 @@ class RetryFlow:
 출력: YES 또는 NO
 ```
 
-### 5-2. 단일 선택(A/B/C/D) 재시도
+### 5-2. 단일 선택(PASS/PII/HARMFUL/PROMPT_INJECTION) 재시도
 
-**목표:** 기존 응답을 단일 라벨로 정규화.\n
-**전략:** 라벨 정의와 우선순위를 다시 제공하고, 기존 응답을 참고해 한 글자만 출력.
+**목표:** 기존 응답을 표준 라벨로 정규화.
+**전략:** 라벨 정의와 우선순위를 다시 제공하고, 기존 응답을 참고해 한 라벨만 출력.
 
 ```text
 너는 라벨 복구기다.
-라벨: A=SAFE, B=PII, C=HARMFUL, D=PROMPT_INJECTION
-우선순위: D > C > B > A
-규칙: A/B/C/D 중 하나만 출력. 설명 금지.
+라벨: PASS, PII, HARMFUL, PROMPT_INJECTION
+우선순위: PROMPT_INJECTION > HARMFUL > PII > PASS
+규칙: 위 라벨 중 하나만 출력. 설명 금지.
 입력: {user_input}
 기존 응답: {failed_output}
-출력: A|B|C|D
+출력: PASS|PII|HARMFUL|PROMPT_INJECTION
 ```
 
 ### 5-3. 복수 선택(A,B,...) 재시도
 
-**목표:** 여러 라벨을 쉼표 구분 형태로 복구.\n
+**목표:** 여러 라벨을 쉼표 구분 형태로 복구.
 **전략:** 정렬 규칙과 NONE 처리 규칙을 함께 제공한다.
 
 ```text
@@ -187,7 +187,7 @@ class RetryFlow:
 
 ### 5-4. JSON 재시도
 
-**목표:** 깨진 JSON을 스키마에 맞춰 재작성.\n
+**목표:** 깨진 JSON을 스키마에 맞춰 재작성.
 **전략:** 스키마와 타입 규칙을 다시 제공하고, 기존 응답을 참고해 JSON만 출력하게 한다.
 
 ```text
@@ -199,21 +199,36 @@ class RetryFlow:
 출력: JSON만 반환
 ```
 
+### 5-5. Pydantic 검증 실패 재시도
+
+**목표:** 파싱은 성공했지만 **스키마 검증에 실패한 JSON**을 исправ하게 한다.\n
+**전략:** Pydantic 오류 이유를 함께 제공하고, 필수 필드/타입 규칙을 다시 강조한다.
+
+```text
+너는 JSON 교정기다.
+규칙: JSON 외 텍스트 금지, 스키마와 타입 엄수.
+Pydantic 오류: {validation_error}
+스키마: {schema}
+입력: {text}
+기존 응답: {failed_output}
+출력: JSON만 반환
+```
+
 이렇게 유형별로 재시도 프롬프트를 조정하면 복구 성공률이 크게 올라갑니다.
 
 ---
 
-## 6) json-repair 포함 복구 파이프라인
+## 6) Pydantic + json-repair 포함 복구 파이프라인
 
-JSON은 \"살짝 깨진\" 상태로 많이 오기 때문에, LLM 재시도 전에
-`json-repair`를 한 번 적용하는 것이 효율적입니다.
+JSON은 \"살짝 깨진\" 상태로 많이 오기 때문에, LLM 재시도 전에 **Pydantic 검증**과 `json-repair`를 함께 두는 것이 효율적입니다.
 
 ### 권장 순서
 
-1. `json.loads`로 엄격 파싱\n
-2. 실패하면 `json-repair`로 복구 시도\n
-3. 그래도 실패하면 **LLM 재시도 프롬프트** 호출\n
-4. 최종 실패 시 보수적 기본값 또는 휴먼 리뷰 전환
+1. `json.loads`로 엄격 파싱
+2. 파싱 성공 시 **Pydantic 스키마 검증**
+3. 검증 실패 또는 파싱 실패 시 `json-repair`로 복구 시도
+4. 그래도 실패하면 **LLM 재시도 프롬프트** 호출
+5. 최종 실패 시 보수적 기본값 또는 휴먼 리뷰 전환
 
 ### json-repair 예시 코드
 
@@ -222,7 +237,6 @@ JSON은 \"살짝 깨진\" 상태로 많이 오기 때문에, LLM 재시도 전�
 목적: json-repair로 JSON 복구 후 파싱한다.
 설명: 1차 파싱 실패 시 복구 절차를 적용한다.
 디자인 패턴: Strategy
-참조: docs/04_string_tricks/05_retry_logic.md
 """
 
 import json
@@ -285,3 +299,4 @@ uv add json-repair
 - 재시도 횟수와 종료 조건이 문서화되어 있는가?
 - 실패 시 기본값/휴먼 리뷰 경로가 준비되어 있는가?
 - JSON의 경우 json-repair 적용 순서가 문서화되어 있는가?
+- JSON의 경우 Pydantic 검증 위치가 문서화되어 있는가?

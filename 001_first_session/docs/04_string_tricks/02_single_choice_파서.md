@@ -88,7 +88,6 @@ prompt = PromptTemplate(
 목적: 안전 분류 라우팅 라벨을 Enum으로 정의한다.
 설명: 단일 선택 결과를 안정적으로 분기하기 위해 사용한다.
 디자인 패턴: Enum
-참조: docs/04_string_tricks/02_single_choice_파서.md
 """
 
 from enum import Enum

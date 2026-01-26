@@ -43,7 +43,6 @@ LLM을 "텍스트를 반환하는 도구"로 보고, **후처리 파이프라인
 목적: LLM 텍스트 응답을 안전하게 처리하는 어댑터를 제공한다.
 설명: 파싱-검증-정규화 과정을 하나의 클래스로 묶는다.
 디자인 패턴: Adapter
-참조: docs/02_langgraph_basics/02_LLM_텍스트_도구_관점.md
 """
 
 from dataclasses import dataclass
