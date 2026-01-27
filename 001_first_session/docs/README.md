@@ -12,9 +12,10 @@
 
 ### 02. LangGraph 기본 원칙
 
-- [01_태스크_분리와_그래프_구조](./02_langgraph_basics/01_태스크_분리와_그래프_구조.md)
-- [02_LLM_텍스트_도구_관점](./02_langgraph_basics/02_LLM_텍스트_도구_관점.md)
-- [03_그래프_설계_패턴과_오류_처리](./02_langgraph_basics/03_그래프_설계_패턴과_오류_처리.md)
+- [01_langgrpah_components](./02_langgraph_basics/01_langgrpah_components.md)
+- [02_태스크_분리와_그래프_구조](./02_langgraph_basics/02_태스크_분리와_그래프_구조.md)
+- [03_LLM_텍스트_도구_관점](./02_langgraph_basics/03_LLM_텍스트_도구_관점.md)
+- [04_그래프_설계_패턴과_오류_처리](./02_langgraph_basics/04_그래프_설계_패턴과_오류_처리.md)
 
 ### 03. LLM 텍스트 처리
 

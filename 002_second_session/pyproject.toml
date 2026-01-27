@@ -1,5 +1,5 @@
 [project]
-name = "secondSession"
+name = "secondsession"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -15,12 +15,13 @@ dependencies = [
     "langchain-google-genai>=4.2.0",
     "langchain-openai>=1.1.7",
     "langgraph>=1.0.7",
+    "langgraph-checkpoint-redis>=0.3.3",
     "python-dotenv>=1.2.1",
     "uvicorn>=0.40.0",
 ]
 
 [project.scripts]
-secondSession = "secondSession:main"
+secondsession = "secondsession:main"
 
 [build-system]
 requires = ["uv_build>=0.8.19,<0.9.0"]
