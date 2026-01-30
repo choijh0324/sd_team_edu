@@ -7,20 +7,29 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ChatHistoryItem(BaseModel):
     """대화 내역 항목."""
 
-    role: Literal["user", "assistant", "system", "tool"] = Field(
-        ..., description="역할(user/assistant/system/tool)"
+    role: Literal["user", "assistant", "system"] = Field(
+        ...,
+        description="역할(user/assistant/system)",
     )
-    content: str = Field(..., min_length=1, max_length=4000, description="메시지 내용")
+    content: str = Field(..., description="메시지 내용")
     created_at: str | None = Field(default=None, description="생성 시각(ISO8601)")
-    metadata: dict | None = Field(default=None, description="메타데이터")
-    message_id: str | None = Field(default=None, description="메시지 식별자")
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, value: str) -> str:
+        """콘텐츠 길이를 검증한다."""
+        content = value.strip()
+        if not content:
+            raise ValueError("content는 비어 있을 수 없습니다.")
+        if len(content) > 2000:
+            raise ValueError("content는 2000자를 초과할 수 없습니다.")
+        return content
 
 
-# TODO:
-# - content 길이 정책을 서비스 정책에 맞게 조정한다.
+# content 길이 정책은 서비스 정책에 맞게 조정할 수 있다.

@@ -16,16 +16,17 @@ class ChatStreamEvent(BaseModel):
     """스트리밍 이벤트 스키마."""
 
     type: StreamEventType = Field(..., description="이벤트 타입")
-    content: str | None = Field(default=None, descripti6on="토큰/에러/종료 이벤트 내용")
+    content: str | None = Field(default=None, description="토큰/에러/종료 이벤트 내용")
     metadata: ChatStreamMetadata | None = Field(default=None, description="메타데이터 이벤트 페이로드")
     node: str | None = Field(default=None, description="노드 이름")
     error_code: ErrorCode | None = Field(default=None, description="에러 코드")
     safeguard_label: SafeguardLabel | None = Field(default=None, description="안전 라벨")
     trace_id: str = Field(..., description="스트리밍 추적 식별자")
-    seq: int = Field(..., ge=1, description="이벤트 순서(1 이상)")
+    seq: int = Field(..., description="이벤트 순서")
 
 
-# TODO:
-# - type별 필수/선택 필드를 명확히 문서화한다.
-# - metadata 이벤트에서 content와 metadata 중 무엇을 사용할지 규칙을 고정한다.
-# - error 이벤트는 token보다 먼저 전송하고, 마지막에 done을 전송하는 규칙을 고정한다.
+# 타입별 규약:
+# - token: content 필수
+# - metadata: metadata 필수(content 사용하지 않음)
+# - error: content + error_code 필수
+# - done: content는 null

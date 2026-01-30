@@ -7,11 +7,25 @@
 
 from fastapi import FastAPI
 
+from secondsession.core.common.checkpointer import build_redis_checkpointer
+from secondsession.core.common.queue import ChatJobQueue, ChatStreamEventQueue
+
 from secondsession.api.chat.router.chat_router import ChatRouter
 from secondsession.api.chat.service.chat_service import ChatService
 from secondsession.core.chat.graphs.chat_graph import ChatGraph
 from secondsession.core.common.app_config import AppConfig
 from secondsession.core.common.llm_client import LlmClient
+
+
+def _build_redis_client(redis_url: str | None):
+    """Redis 클라이언트를 생성한다."""
+    if not redis_url:
+        raise ValueError("REDIS_URL 환경 변수가 필요합니다.")
+    try:
+        import redis
+    except ImportError as exc:  # pragma: no cover - 환경 구성에 따라 달라짐
+        raise RuntimeError("redis 패키지가 필요합니다.") from exc
+    return redis.Redis.from_url(redis_url)
 
 
 def create_app() -> FastAPI:
@@ -28,9 +42,18 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     config = AppConfig.from_env()
+    redis_client = _build_redis_client(config.redis_url)
+    job_queue = ChatJobQueue(redis_client)
+    event_queue = ChatStreamEventQueue(redis_client)
+    checkpointer = build_redis_checkpointer(config.redis_url)
     llm_client = LlmClient(config)
-    graph = ChatGraph(llm_client=llm_client)
-    service = ChatService(graph)
+    graph = ChatGraph(checkpointer=checkpointer, llm_client=llm_client)
+    service = ChatService(
+        graph,
+        job_queue=job_queue,
+        event_queue=event_queue,
+        redis_client=redis_client,
+    )
     chat_router = ChatRouter(service)
     app.include_router(chat_router.router)
 

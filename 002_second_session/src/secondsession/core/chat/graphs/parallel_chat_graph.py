@@ -5,46 +5,18 @@
 
 """병렬 대화 그래프 구성 모듈."""
 
-import os
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from __future__ import annotations
 
-import httpx
-from langgraph.graph import StateGraph, END
+from typing import Any
 
-from secondsession.core.chat.const.error_code import ErrorCode
+from langgraph.graph import END, StateGraph
+
+from secondsession.core.chat.const import ErrorCode
+from secondsession.core.chat.nodes.fallback_node import FallbackNode
+from secondsession.core.chat.prompts.answer_prompt import ANSWER_PROMPT
 from secondsession.core.chat.state.chat_state import ChatState
+from secondsession.core.common.app_config import AppConfig
 from secondsession.core.common.llm_client import LlmClient
-
-_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-_DEFAULT_MODEL = "gpt-4o-mini"
-_API_URL = "https://api.openai.com/v1/chat/completions"
-# 병렬 호출 비용 상한 정책(팀 기준):
-# - 후보 생성은 최대 2개로 제한한다.
-# - 추가 후보가 필요하면 운영 승인 후 확장한다.
-# - 동일 요청에서 병렬 호출 수는 2회를 넘지 않는다.
-
-
-@dataclass(frozen=True)
-class QuorumPolicy:
-    """병렬 결과 합류 기준을 정의한다."""
-
-    required_success: int
-
-    def is_acceptable(self, successes: int) -> bool:
-        """성공 개수가 기준을 만족하는지 확인한다."""
-        return successes >= self.required_success
-
-
-@dataclass(frozen=True)
-class BarrierPolicy:
-    """필수 결과 키 준비 여부를 검사한다."""
-
-    required_keys: set[str]
-
-    def is_ready(self, results: dict[str, str]) -> bool:
-        """필수 결과 키가 모두 존재하는지 확인한다."""
-        return self.required_keys.issubset(results.keys())
 
 
 class ParallelChatGraph:
@@ -57,170 +29,140 @@ class ParallelChatGraph:
     ) -> None:
         """그래프를 초기화한다.
 
-    Returns:
-        object: 컴파일된 LangGraph 애플리케이션.
-    """
-    graph = StateGraph(ChatState)
+        Args:
+            checkpointer: LangGraph 체크포인터 인스턴스.
+            llm_client: LLM 클라이언트(선택).
+        """
+        self._checkpointer = checkpointer
+        self._llm_client = llm_client
+        self._app = self._build_graph()
 
-    graph.add_node("fanout", _wrap_node("fanout", _fanout_node, checkpointer))
-    graph.add_node("candidate_a", _wrap_node("candidate_a", _candidate_a_node, checkpointer))
-    graph.add_node("candidate_b", _wrap_node("candidate_b", _candidate_b_node, checkpointer))
-    graph.add_node("merge", _wrap_node("merge", _merge_candidates_node, checkpointer))
+    def run(self, state: ChatState) -> ChatState:
+        """병렬 대화 그래프를 실행한다.
 
-    graph.set_entry_point("fanout")
-    graph.add_edge("fanout", "candidate_a")
-    graph.add_edge("fanout", "candidate_b")
-    graph.add_edge("candidate_a", "merge")
-    graph.add_edge("candidate_b", "merge")
-    graph.add_edge("merge", END)
+        Args:
+            state: 대화 입력 상태.
 
-    return graph.compile(checkpointer=checkpointer)
+        Returns:
+            ChatState: 대화 결과 상태.
+        """
+        config = self._build_config(state)
+        if config is None:
+            return self._app.invoke(state)
+        return self._app.invoke(state, config)
 
+    def _build_config(self, state: ChatState) -> dict | None:
+        """체크포인터 복구를 위한 실행 설정을 구성한다."""
+        thread_id = state.get("thread_id")
+        if not thread_id:
+            return None
+        configurable: dict[str, str] = {"thread_id": str(thread_id)}
+        checkpoint_id = state.get("checkpoint_id")
+        if checkpoint_id:
+            configurable["checkpoint_id"] = str(checkpoint_id)
+        return {"configurable": configurable}
 
-def _wrap_node(node_name: str, handler, checkpointer):
-    """노드 실행 후 체크포인트를 저장하는 래퍼."""
+    def _build_graph(self) -> object:
+        """병렬 대화 그래프를 구성한다.
 
-    def _wrapped(state: ChatState) -> dict:
-        updated = handler(state)
-        snapshot = dict(state)
-        if isinstance(updated, dict):
-            snapshot.update(updated)
-        thread_id = snapshot.get("thread_id")
-        if thread_id and hasattr(checkpointer, "save"):
-            checkpointer.save(
-                thread_id=thread_id,
-                state=snapshot,
-                metadata={
-                    "node": node_name,
-                    "route": snapshot.get("route"),
-                    "error_code": snapshot.get("error_code"),
-                    "safeguard_label": snapshot.get("safeguard_label"),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                },
-            )
-        return updated
+        Returns:
+            object: 컴파일된 LangGraph 애플리케이션.
 
-    return _wrapped
+        구현 내용:
+            - 팬아웃에서 후보 A/B를 병렬 생성한다.
+            - 팬인에서 후보를 합류하고 최종 답변을 선택한다.
+            - 쿼럼은 1개 성공 시 합류로 설정한다.
+            - 실패 시 fallback으로 전환하고 error_code를 설정한다.
+            - 선택 기준은 길이 점수 기반으로 한다.
+            - thread_id 복구 정책을 적용한다.
+        """
+        graph = StateGraph(ChatState)
+        fallback_node = FallbackNode()
 
+        graph.add_node("fanout", self._fanout)
+        graph.add_node("candidate_a", self._candidate_a)
+        graph.add_node("candidate_b", self._candidate_b)
+        graph.add_node("join", self._join_candidates)
+        graph.add_node("fallback", fallback_node.run)
 
-def _fanout_node(state: ChatState) -> dict:
-    """팬아웃 진입 노드."""
-    return {}
+        graph.set_entry_point("fanout")
+        graph.add_edge("fanout", "candidate_a")
+        graph.add_edge("fanout", "candidate_b")
+        graph.add_edge("candidate_a", "join")
+        graph.add_edge("candidate_b", "join")
 
+        graph.add_conditional_edges("join", lambda s: s["route"], {
+            "end": END,
+            "fallback": "fallback",
+        })
+        graph.add_edge("fallback", END)
 
-def _candidate_a_node(state: ChatState) -> dict:
-    """후보 답변 A를 생성한다(간결 우선)."""
-    user_message = state.get("last_user_message", "")
-    prompt = (
-        "당신은 친절한 서비스 어시스턴트입니다.\n"
-        "[규칙]\n"
-        "- 한두 문장으로 간결하게 답변하세요.\n"
-        "- 불필요한 추측은 피하세요.\n\n"
-        f"[사용자 입력]\n{user_message}\n\n[출력]\n"
-        "답변만 출력하세요."
-    )
-    output = _call_openai(prompt)
-    return {"candidate_a": output}
+        if self._checkpointer is None:
+            return graph.compile()
+        return graph.compile(checkpointer=self._checkpointer)
 
+    def _fanout(self, state: ChatState) -> ChatState:
+        """팬아웃 시작 노드."""
+        _ = state
+        return {}
 
-def _candidate_b_node(state: ChatState) -> dict:
-    """후보 답변 B를 생성한다(설명 우선)."""
-    user_message = state.get("last_user_message", "")
-    prompt = (
-        "당신은 친절한 서비스 어시스턴트입니다.\n"
-        "[규칙]\n"
-        "- 핵심을 유지하면서 간단한 배경 설명을 포함하세요.\n"
-        "- 불필요한 추측은 피하세요.\n\n"
-        f"[사용자 입력]\n{user_message}\n\n[출력]\n"
-        "답변만 출력하세요."
-    )
-    output = _call_openai(prompt)
-    return {"candidate_b": output}
+    def _candidate_a(self, state: ChatState) -> ChatState:
+        """후보 A를 생성한다."""
+        return self._generate_candidate(state, variant="A")
 
+    def _candidate_b(self, state: ChatState) -> ChatState:
+        """후보 B를 생성한다."""
+        return self._generate_candidate(state, variant="B")
 
-def _merge_candidates_node(state: ChatState) -> dict:
-    """후보를 합류해 최종 답변을 선택한다."""
-    candidate_a = (state.get("candidate_a") or "").strip()
-    candidate_b = (state.get("candidate_b") or "").strip()
-
-    results = {
-        "candidate_a": candidate_a,
-        "candidate_b": candidate_b,
-    }
-    barrier = BarrierPolicy(required_keys={"candidate_a", "candidate_b"})
-    if not barrier.is_ready(results):
+    def _generate_candidate(self, state: ChatState, variant: str) -> ChatState:
+        """후보 응답을 생성하고 점수를 계산한다."""
+        user_message = state.get("last_user_message", "")
+        llm = self._get_llm()
+        prompt = self._build_variant_prompt(user_message, variant)
+        try:
+            result = llm.invoke(prompt)
+        except Exception:
+            return {"candidate_errors": [ErrorCode.MODEL.code]}
+        content = str(getattr(result, "content", result)).strip()
+        if not content:
+            return {"candidate_errors": [ErrorCode.VALIDATION.code]}
+        score = self._score_candidate(content)
         return {
-            "last_assistant_message": "",
-            "error_code": ErrorCode.ROUTING,
+            "candidates": [content],
+            "candidate_scores": [score],
         }
 
-    successes = sum(bool(c) for c in [candidate_a, candidate_b])
-    if not QuorumPolicy(required_success=1).is_acceptable(successes):
+    def _join_candidates(self, state: ChatState) -> ChatState:
+        """후보를 합류하고 최종 답변을 선택한다."""
+        candidates = state.get("candidates", [])
+        scores = state.get("candidate_scores", [])
+        pairs = list(zip(candidates, scores))
+        if not pairs:
+            return {
+                "route": "fallback",
+                "error_code": ErrorCode.MODEL,
+            }
+        best = max(pairs, key=lambda item: item[1])
         return {
-            "last_assistant_message": "",
-            "error_code": ErrorCode.MODEL,
+            "route": "end",
+            "selected_candidate": best[0],
+            "last_assistant_message": best[0],
         }
 
-    user_message = state.get("last_user_message", "")
-    score_a = _score_candidate(user_message, candidate_a)
-    score_b = _score_candidate(user_message, candidate_b)
-    best = candidate_a if score_a >= score_b else candidate_b
-    return {"last_assistant_message": best}
+    def _build_variant_prompt(self, user_message: str, variant: str) -> str:
+        """후보별 프롬프트를 구성한다."""
+        base = ANSWER_PROMPT.format(user_message=user_message)
+        if variant == "B":
+            return f"{base}\n\n[변형]\n핵심만 간단히 bullet로 답변하세요."
+        return f"{base}\n\n[변형]\n간결하고 실무적인 톤으로 답변하세요."
 
+    def _score_candidate(self, content: str) -> float:
+        """후보 점수를 계산한다."""
+        return float(len(content))
 
-def _score_candidate(user_message: str, candidate: str) -> int:
-    """간단한 정합성/가독성 점수로 후보를 비교한다."""
-    if not candidate:
-        return -10_000
-
-    score = 0
-    length = len(candidate)
-    if 40 <= length <= 600:
-        score += 3
-    if 10 <= length < 40:
-        score += 1
-    if length > 600:
-        score -= 2
-
-    # 질문과의 단어 겹침(아주 단순한 정합성 신호)
-    user_tokens = {token for token in user_message.split() if len(token) >= 2}
-    candidate_tokens = {token for token in candidate.split() if len(token) >= 2}
-    overlap = len(user_tokens & candidate_tokens)
-    score += min(overlap, 3)
-
-    # 종결 부호가 있으면 가독성 가점
-    if candidate.endswith((".", "!", "?", "요", "다")):
-        score += 1
-
-    return score
-
-
-def _call_openai(prompt: str) -> str:
-    """OpenAI Chat Completions API로 답변 후보를 생성한다."""
-    if not prompt:
-        return ""
-    if not _OPENAI_API_KEY:
-        return ""
-
-    headers = {
-        "Authorization": f"Bearer {_OPENAI_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": _DEFAULT_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.3,
-    }
-    try:
-        with httpx.Client(timeout=20.0) as client:
-            response = client.post(_API_URL, headers=headers, json=payload)
-            response.raise_for_status()
-    except httpx.HTTPError:
-        return ""
-
-    data = response.json()
-    choices = data.get("choices", [])
-    if not choices:
-        return ""
-    message = choices[0].get("message", {})
-    return (message.get("content") or "").strip()
+    def _get_llm(self):
+        """LLM 인스턴스를 반환한다."""
+        if self._llm_client is None:
+            config = AppConfig.from_env()
+            self._llm_client = LlmClient(config)
+        return self._llm_client.chat_model()

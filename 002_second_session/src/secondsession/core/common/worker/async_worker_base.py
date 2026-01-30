@@ -21,16 +21,28 @@ class AsyncWorkerBase(ABC):
             poll_interval: 큐 폴링 간격(초).
         """
         self._poll_interval = poll_interval
+        self._stop_requested = False
+
+    def stop(self) -> None:
+        """워커 종료를 요청한다."""
+        self._stop_requested = True
 
     async def run_forever(self) -> None:
         """워커를 비동기 루프 형태로 실행한다.
 
-        TODO:
-            - 종료 신호를 위한 정책(예: stop 플래그)을 정의한다.
-            - 예외 발생 시 재시도/백오프 정책을 정의한다.
+        구현 내용:
+            - stop 플래그로 종료를 제어한다.
+            - 예외 발생 시 간단 백오프를 적용한다.
         """
-        _ = asyncio
-        raise NotImplementedError("비동기 워커 실행 루프를 구현해야 합니다.")
+        while not self._stop_requested:
+            try:
+                job = await self._dequeue_job()
+                if job is None:
+                    await asyncio.sleep(self._poll_interval)
+                    continue
+                await self._process_job(job)
+            except Exception:
+                await asyncio.sleep(min(self._poll_interval * 2, 1.0))
 
     @abstractmethod
     async def _dequeue_job(self) -> dict | None:

@@ -5,13 +5,13 @@
 
 """대화 요약 노드 모듈."""
 
+from langchain_openai import ChatOpenAI
+
+from secondsession.core.chat.const import ErrorCode
 from secondsession.core.chat.prompts.summary_prompt import SUMMARY_PROMPT
 from secondsession.core.chat.state.chat_state import ChatState
+from secondsession.core.common.app_config import AppConfig
 from secondsession.core.common.llm_client import LlmClient
-
-_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-_DEFAULT_MODEL = "gpt-4o-mini"
-_API_URL = "https://api.openai.com/v1/chat/completions"
 
 
 class SummaryNode:
@@ -34,10 +34,33 @@ class SummaryNode:
         Returns:
             ChatState: 요약 결과가 반영된 상태.
         """
-        # TODO: LLM 클라이언트를 연결한다.
-        # TODO: SUMMARY_PROMPT.format으로 state["history"]를 결합한다.
-        # TODO: summary 값을 반환한다.
-        _ = SUMMARY_PROMPT
-        _ = state.get("history", [])
-        _ = self._llm_client
-        raise NotImplementedError("요약 노드 로직을 구현해야 합니다.")
+        chat_history = self._render_history(state.get("history", []))
+        llm = self._get_llm()
+        prompt = SUMMARY_PROMPT.format(chat_history=chat_history)
+        try:
+            result = llm.invoke(prompt)
+        except TimeoutError:
+            return {"error_code": ErrorCode.TIMEOUT}
+        except Exception:
+            return {"error_code": ErrorCode.MODEL}
+
+        summary = str(getattr(result, "content", result)).strip()
+        if not summary:
+            return {"error_code": ErrorCode.VALIDATION}
+        return {"summary": summary}
+
+    def _get_llm(self) -> ChatOpenAI:
+        """LLM 인스턴스를 반환한다."""
+        if self._llm_client is None:
+            config = AppConfig.from_env()
+            self._llm_client = LlmClient(config)
+        return self._llm_client.chat_model()
+
+    def _render_history(self, history: list[dict]) -> str:
+        """대화 내역을 요약용 문자열로 변환한다."""
+        lines: list[str] = []
+        for item in history:
+            role = item.get("role", "unknown")
+            content = item.get("content", "")
+            lines.append(f"{role}: {content}")
+        return "\n".join(lines)

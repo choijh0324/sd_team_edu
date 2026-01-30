@@ -5,20 +5,13 @@
 
 """안전 분류 노드 모듈."""
 
-import logging
-import os
+from langchain_openai import ChatOpenAI
 
-import httpx
-
-from secondsession.core.chat.const.error_code import ErrorCode
-from secondsession.core.chat.const.safeguard_label import SafeguardLabel
+from secondsession.core.chat.const import ErrorCode, SafeguardLabel
 from secondsession.core.chat.prompts.safeguard_prompt import SAFEGUARD_PROMPT
 from secondsession.core.chat.state.chat_state import ChatState
+from secondsession.core.common.app_config import AppConfig
 from secondsession.core.common.llm_client import LlmClient
-
-_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-_DEFAULT_MODEL = "gpt-4o-mini"
-_API_URL = "https://api.openai.com/v1/chat/completions"
 
 
 class SafeguardNode:
@@ -41,13 +34,44 @@ class SafeguardNode:
         Returns:
             ChatState: 안전 라벨이 반영된 상태.
         """
-        # TODO: LLM 클라이언트를 연결한다.
-        # TODO: SAFEGUARD_PROMPT.format으로 사용자 입력을 결합한다.
-        # TODO: 결과 라벨을 safeguard_label로 반환한다.
-        # TODO: PASS가 아닌 경우 error_code를 설정하는 정책을 정의한다.
-        # TODO: 라벨별 사용자 메시지/차단 정책을 문서화한다.
-        # TODO: SafeguardLabel/ErrorCode(Enum)을 사용해 값을 고정한다.
-        _ = SAFEGUARD_PROMPT
-        _ = state.get("last_user_message", "")
-        _ = self._llm_client
-        raise NotImplementedError("안전 분류 로직을 구현해야 합니다.")
+        user_message = state.get("last_user_message", "")
+        llm = self._get_llm()
+        prompt = SAFEGUARD_PROMPT.format(user_input=user_message)
+        try:
+            result = llm.invoke(prompt)
+        except TimeoutError:
+            return {
+                "safeguard_label": SafeguardLabel.PROMPT_INJECTION,
+                "error_code": ErrorCode.TIMEOUT,
+            }
+        except Exception:
+            return {
+                "safeguard_label": SafeguardLabel.PROMPT_INJECTION,
+                "error_code": ErrorCode.MODEL,
+            }
+
+        label = self._parse_label(str(getattr(result, "content", result)))
+        response: ChatState = {"safeguard_label": label}
+        if label != SafeguardLabel.PASS:
+            response["error_code"] = ErrorCode.SAFEGUARD
+        return response
+
+    def _get_llm(self) -> ChatOpenAI:
+        """LLM 인스턴스를 반환한다."""
+        if self._llm_client is None:
+            config = AppConfig.from_env()
+            self._llm_client = LlmClient(config)
+        return self._llm_client.chat_model()
+
+    def _parse_label(self, raw: str) -> SafeguardLabel:
+        """라벨 문자열을 SafeguardLabel로 변환한다."""
+        value = raw.strip().upper()
+        if value == SafeguardLabel.PASS.value:
+            return SafeguardLabel.PASS
+        if value == SafeguardLabel.PII.value:
+            return SafeguardLabel.PII
+        if value == SafeguardLabel.HARMFUL.value:
+            return SafeguardLabel.HARMFUL
+        if value == SafeguardLabel.PROMPT_INJECTION.value:
+            return SafeguardLabel.PROMPT_INJECTION
+        return SafeguardLabel.PROMPT_INJECTION

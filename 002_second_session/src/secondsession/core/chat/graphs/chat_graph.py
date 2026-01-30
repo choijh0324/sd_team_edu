@@ -11,6 +11,7 @@ from typing import Any
 
 from langgraph.graph import END, StateGraph
 
+from secondsession.core.chat.const import ErrorCode, SafeguardLabel
 from secondsession.core.chat.nodes.answer_node import AnswerNode
 from secondsession.core.chat.nodes.append_history_node import AppendHistoryNode
 from secondsession.core.chat.nodes.decide_summary_node import DecideSummaryNode
@@ -48,25 +49,46 @@ class ChatGraph:
         Returns:
             ChatState: 대화 결과 상태.
         """
-        # TODO: thread_id를 config에 넣어 체크포인트 복구를 활성화하세요.
-        # TODO: 복구된 history를 기반으로 답변을 이어가도록 구성하세요.
-        return self._app.invoke(state)
+        # thread_id를 config에 넣어 체크포인트 복구를 활성화한다.
+        config = self._build_config(state)
+        if config is None:
+            return self._app.invoke(state)
+        return self._app.invoke(state, config)
+
+    def _build_config(self, state: ChatState) -> dict | None:
+        """체크포인터 복구를 위한 실행 설정을 구성한다."""
+        thread_id = state.get("thread_id")
+        if not thread_id:
+            return None
+        configurable: dict[str, str] = {"thread_id": str(thread_id)}
+        checkpoint_id = state.get("checkpoint_id")
+        if checkpoint_id:
+            configurable["checkpoint_id"] = str(checkpoint_id)
+        return {"configurable": configurable}
 
     def _route_by_safeguard(self, state: ChatState) -> str:
         """안전 라벨에 따른 분기 정책을 정의한다.
 
-        TODO:
-            - safeguard_label 기준 분기 정책을 구현한다.
-            - PASS가 아닌 경우 error_code를 설정하도록 연결한다.
-            - 정책/규제 요구사항을 반영한다.
-            - 라벨별로 폴백 메시지/차단 로직을 분리한다.
-            - SafeguardLabel(Enum)을 사용해 분기 값을 고정한다.
+        구현 내용:
+            - SafeguardLabel 기준으로 PASS만 통과한다.
+            - PASS가 아닌 경우 SAFEGUARD 에러 코드로 전환한다.
         """
-        label = state.get("safeguard_label")
-        # 임시 정책: PASS만 통과, 그 외는 폴백으로 라우팅
-        if label == "PASS":
+        label = self._normalize_label(state.get("safeguard_label"))
+        if label == SafeguardLabel.PASS:
             return "answer"
+        state["error_code"] = ErrorCode.SAFEGUARD
         return "fallback"
+
+    def _normalize_label(self, value: SafeguardLabel | str | None) -> SafeguardLabel | None:
+        """안전 라벨 값을 정규화한다."""
+        if value is None:
+            return None
+        if isinstance(value, SafeguardLabel):
+            return value
+        try:
+            return SafeguardLabel[str(value).upper()]
+        except KeyError:
+            return None
 
     def _build_graph(self) -> object:
         """대화 그래프를 구성한다.
@@ -94,20 +116,28 @@ class ChatGraph:
             "answer": "answer",
             "fallback": "fallback",
         })
-        graph.add_edge("answer", "append_history")
+        graph.add_conditional_edges("answer", self._route_after_answer, {
+            "append_history": "append_history",
+            "fallback": "fallback",
+        })
         graph.add_edge("append_history", "decide_summary")
 
         graph.add_conditional_edges("decide_summary", lambda s: s["route"], {
             "summarize": "summarize",
             "end": END,
         })
-        graph.add_edge("fallback", END)
+        graph.add_edge("fallback", "append_history")
         graph.add_edge("summarize", END)
 
-        # TODO:
-        # - 폴백 응답도 필요한 경우 history에 기록하도록 정책을 정하세요.
-        # - answer 단계의 에러(error_code)를 fallback으로 라우팅하는 경로를 추가하세요.
+        # 폴백 응답도 history에 기록한다.
 
         if self._checkpointer is None:
             return graph.compile()
         return graph.compile(checkpointer=self._checkpointer)
+
+    def _route_after_answer(self, state: ChatState) -> str:
+        """answer 결과에 따라 fallback 여부를 결정한다."""
+        error_code = state.get("error_code")
+        if error_code is None:
+            return "append_history"
+        return "fallback"

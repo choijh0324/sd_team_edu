@@ -17,5 +17,8 @@ class StreamEventType(Enum):
     DONE = "done"
 
 
-# TODO:
-# - 이벤트 타입별 필수 필드를 문서화한다.
+# 규약 요약:
+# - token: content 필수
+# - metadata: metadata 필수(content 사용하지 않음)
+# - error: content + error_code 필수
+# - done: content는 null

@@ -23,14 +23,13 @@ class ChatJobQueue:
         self._redis = redis_client
         self._key = key
 
-    async def enqueue(self, payload: dict) -> None:
+    def enqueue(self, payload: dict) -> None:
         """작업을 큐에 적재한다.
 
-        TODO:
-            - payload 필수 필드(job_id, trace_id, thread_id, query)를 검증한다.
-            - JSON 문자열로 직렬화한다(UTF-8, ensure_ascii=False).
-            - rpush로 큐에 적재한다.
-            - 직렬화 실패/Redis 오류 정책을 정의한다(로깅/예외).
+        구현 내용:
+            - payload 필수 필드(job_id, trace_id, thread_id, query) 검증
+            - JSON 직렬화(UTF-8, ensure_ascii=False)
+            - rpush로 큐 적재 및 예외 로깅
         """
         logger = logging.getLogger(__name__)
         required_keys = {"job_id", "trace_id", "thread_id", "query"}
@@ -48,15 +47,14 @@ class ChatJobQueue:
             logger.exception("작업 큐 적재 실패: %s", exc)
             raise
 
-    async def dequeue(self) -> dict | None:
+    def dequeue(self) -> dict | None:
         """작업을 큐에서 꺼낸다.
 
-        TODO:
+        구현 내용:
             - lpop으로 큐에서 하나를 가져온다.
             - 값이 없으면 None을 반환한다.
             - JSON을 dict로 역직렬화한다.
-            - 역직렬화 실패 시 스킵/로깅 규칙을 정의한다.
-            - 필수 필드가 없으면 에러 처리 정책을 정의한다.
+            - 역직렬화 실패/필수 필드 누락 시 로깅 후 None 반환.
         """
         logger = logging.getLogger(__name__)
         raw = self._redis.lpop(self._key)

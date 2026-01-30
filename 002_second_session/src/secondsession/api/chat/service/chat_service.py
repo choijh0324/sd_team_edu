@@ -1,140 +1,219 @@
-# 목적: 대화 서비스 인터페이스를 정의한다.
-# 설명: 라우터가 호출할 서비스 메서드 시그니처를 제공한다.
+# 목적: 대화 서비스 구현을 제공한다.
+# 설명: 라우터가 호출하는 서비스 로직을 구현한다.
 # 디자인 패턴: 서비스 레이어 패턴
 # 참조: secondsession/api/chat/router/chat_router.py
 
-"""대화 서비스 인터페이스 모듈."""
+"""대화 서비스 구현 모듈."""
+
+from __future__ import annotations
 
 from collections.abc import Iterable
 import json
-import os
 import time
 import uuid
-from datetime import datetime
+from typing import Any
 
+from secondsession.api.chat.const import StreamEventType
 from secondsession.api.chat.model import (
+    ChatJobCancelResponse,
     ChatJobRequest,
     ChatJobResponse,
     ChatJobStatusResponse,
-    ChatJobCancelResponse,
 )
+from secondsession.core.common.queue import ChatJobQueue, ChatStreamEventQueue
 from secondsession.core.chat.graphs.chat_graph import ChatGraph
 
 
 class ChatService:
-    """대화 서비스 인터페이스."""
+    """대화 서비스 구현체."""
 
-    def __init__(self) -> None:
-        """서비스 의존성을 초기화한다."""
-        if redis is None:
-            raise RuntimeError("redis 패키지가 필요합니다. 의존성을 설치해 주세요.")
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-        redis_client = redis.Redis.from_url(redis_url)
-        self._job_queue = ChatJobQueue(redis_client)
-        self._event_queue = ChatStreamEventQueue(redis_client)
-        self._history_repo = ChatHistoryRepository(redis_client)
+    def __init__(
+        self,
+        graph: ChatGraph,
+        job_queue: ChatJobQueue,
+        event_queue: ChatStreamEventQueue,
+        redis_client: Any,
+        poll_interval: float = 0.1,
+        cancel_ttl_seconds: int | None = 1800,
+    ) -> None:
+        """서비스 의존성을 초기화한다.
+
+        Args:
+            graph: 대화 그래프 실행기.
+            job_queue: 대화 작업 큐.
+            event_queue: 스트리밍 이벤트 큐.
+            redis_client: Redis 클라이언트.
+            poll_interval: 스트리밍 폴링 간격(초).
+            cancel_ttl_seconds: 취소 플래그 TTL(초). None이면 만료 없음.
+        """
+        self._graph = graph
+        self._job_queue = job_queue
+        self._event_queue = event_queue
+        self._redis = redis_client
+        self._poll_interval = poll_interval
+        self._cancel_ttl_seconds = cancel_ttl_seconds
 
     def create_job(self, request: ChatJobRequest) -> ChatJobResponse:
         """대화 작업을 생성한다.
 
-        TODO:
-            - job_id/trace_id 생성
+        구현 내용:
+            - job_id/trace_id/thread_id/session_id 생성
             - 워커 큐에 작업 적재
-            - 대화 요청 → 스트리밍 응답 → 5턴 초과 시 요약 플로우를 설계
-            - thread_id 기반 복구 로직을 연결
-            - 체크포인터에 thread_id를 전달해 대화 내역을 복구
-            - safeguard 분기 결과를 error_code/metadata에 기록
-            - 폴백 케이스에서도 스트리밍 이벤트를 정상 종료
+            - 체크포인터 복구용 식별자 전달
         """
-        job_id = f"job-{uuid.uuid4().hex}"
-        trace_id = f"trace-{uuid.uuid4().hex}"
-        thread_id = request.thread_id or f"thread-{uuid.uuid4().hex}"
+        job_id = self._build_id("job")
+        trace_id = self._build_id("trace")
+        thread_id = request.thread_id or self._build_id("thread")
+        session_id = request.session_id or self._build_id("session")
 
-        payload = {
+        payload: dict[str, Any] = {
             "job_id": job_id,
             "trace_id": trace_id,
             "thread_id": thread_id,
+            "session_id": session_id,
             "query": request.query,
-            "history": request.history or [],
-            "turn_count": request.turn_count or 0,
-            "checkpoint_id": request.checkpoint_id,
-            "user_id": request.user_id,
-            "metadata": request.metadata,
         }
+        if request.history is not None:
+            payload["history"] = request.history
+        if request.turn_count is not None:
+            payload["turn_count"] = request.turn_count
+        if request.user_id is not None:
+            payload["user_id"] = request.user_id
+        if request.metadata is not None:
+            payload["metadata"] = request.metadata
+        if request.checkpoint_id is not None:
+            payload["checkpoint_id"] = request.checkpoint_id
         self._job_queue.enqueue(payload)
-        if request.user_id:
-            for item in request.history or []:
-                self._history_repo.append_item(request.user_id, thread_id, item)
-        self._event_queue.push_event(job_id, {
-            "type": StreamEventType.METADATA.value,
-            "content": json.dumps({
-                "event": MetadataEventType.JOB_QUEUED.value,
-                "message": "작업이 큐에 적재됨",
-                "timestamp": datetime.utcnow().isoformat(),
-                "node": "api",
-                "route": None,
-                "error_code": None,
-                "safeguard_label": None,
-            }, ensure_ascii=False),
-            "node": "api",
-            "trace_id": trace_id,
-            "seq": 1,
-        })
+        self._set_status(job_id, "queued")
 
-        return ChatJobResponse(
-            job_id=job_id,
-            trace_id=trace_id,
-            thread_id=thread_id,
-        )
+        return ChatJobResponse(job_id=job_id, trace_id=trace_id, thread_id=thread_id)
 
     def stream_events(self, job_id: str) -> Iterable[str]:
         """스트리밍 이벤트를 SSE 라인으로 반환한다.
 
-        TODO:
+        구현 내용:
             - Redis에서 이벤트를 소비
             - done 이벤트까지 전송
-            - 대화 응답 토큰과 메타데이터를 순서대로 전달
-            - seq는 job_id 기준으로 단조 증가하도록 구성
-            - type/token/metadata/error/done 포맷을 유지
-            - 종료 시 done 이벤트를 반드시 적재
-            - 폴백 에러 코드가 있는 경우 error 이벤트를 먼저 전송
+            - seq 단조 증가 유지
+            - type/token/metadata/error/done 포맷 유지
         """
+        last_seq = 0
         while True:
             event = self._event_queue.pop_event(job_id)
             if event is None:
-                time.sleep(0.1)
+                time.sleep(self._poll_interval)
                 continue
+            seq = self._coerce_seq(event.get("seq"))
+            if seq is not None and seq <= last_seq:
+                continue
+            if seq is not None:
+                last_seq = seq
+            self._update_status_by_event(job_id, event)
             yield self._to_sse_line(event)
-            if event.get("type") == "done":
+            if self._is_done_event(event):
                 break
 
     def get_status(self, job_id: str) -> ChatJobStatusResponse:
         """작업 상태를 조회한다.
 
-        TODO:
+        구현 내용:
             - 상태 저장소 조회
             - 진행률/상태 반환
         """
-        last_seq = self._event_queue.get_last_seq(job_id)
-        status = "completed" if last_seq > 0 else "pending"
-        return ChatJobStatusResponse(
-            job_id=job_id,
-            status=status,
-            last_seq=last_seq if last_seq > 0 else None,
-        )
+        stored_status = self._get_status(job_id)
+        last_event = self._event_queue.get_last_event(job_id)
+        last_seq = None
+        if last_event is not None:
+            last_seq = self._coerce_seq(last_event.get("seq"))
+        if stored_status:
+            return ChatJobStatusResponse(
+                job_id=job_id,
+                status=stored_status,
+                last_seq=last_seq,
+            )
+        if last_event is None:
+            return ChatJobStatusResponse(job_id=job_id, status="queued", last_seq=None)
+        event_type = self._normalize_event_type(last_event.get("type"))
+        if event_type == StreamEventType.DONE.value:
+            status = "done"
+        elif event_type == StreamEventType.ERROR.value:
+            status = "failed"
+        else:
+            status = "running"
+        return ChatJobStatusResponse(job_id=job_id, status=status, last_seq=last_seq)
 
     def cancel(self, job_id: str) -> ChatJobCancelResponse:
         """작업을 취소한다.
 
-        TODO:
+        구현 내용:
             - 취소 플래그 기록
             - 워커가 취소를 확인하도록 구성
         """
-        cancel_key = f"chat:cancel:{job_id}"
-        self._job_queue._redis.set(cancel_key, "1")
+        key = f"chat:cancel:{job_id}"
+        if self._cancel_ttl_seconds is None:
+            self._redis.set(key, "1")
+        else:
+            self._redis.setex(key, self._cancel_ttl_seconds, "1")
+        self._set_status(job_id, "cancelled")
         return ChatJobCancelResponse(job_id=job_id, status="cancelled")
 
+    def _build_id(self, prefix: str) -> str:
+        """접두사를 포함한 식별자를 생성한다."""
+        return f"{prefix}-{uuid.uuid4().hex}"
+
     def _to_sse_line(self, event: dict) -> str:
-        """SSE 데이터 라인을 생성한다."""
+        """이벤트 딕셔너리를 SSE 라인으로 변환한다."""
         payload = json.dumps(event, ensure_ascii=False)
         return f"data: {payload}\n\n"
+
+    def _coerce_seq(self, value: Any) -> int | None:
+        """seq 값을 안전하게 int로 변환한다."""
+        try:
+            if value is None:
+                return None
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _normalize_event_type(self, value: Any) -> str | None:
+        """이벤트 타입을 문자열로 정규화한다."""
+        if value is None:
+            return None
+        if isinstance(value, StreamEventType):
+            return value.value
+        return str(value)
+
+    def _is_done_event(self, event: dict) -> bool:
+        """done 이벤트 여부를 확인한다."""
+        event_type = self._normalize_event_type(event.get("type"))
+        return event_type == StreamEventType.DONE.value
+
+    def _update_status_by_event(self, job_id: str, event: dict) -> None:
+        """이벤트 타입에 따라 상태를 갱신한다."""
+        current = self._get_status(job_id)
+        if current in {"done", "failed", "cancelled"}:
+            return
+        event_type = self._normalize_event_type(event.get("type"))
+        if event_type == StreamEventType.ERROR.value:
+            self._set_status(job_id, "failed")
+        elif event_type == StreamEventType.DONE.value:
+            self._set_status(job_id, "done")
+
+    def _status_key(self, job_id: str) -> str:
+        """상태 저장 키를 생성한다."""
+        return f"chat:status:{job_id}"
+
+    def _set_status(self, job_id: str, status: str) -> None:
+        """작업 상태를 저장한다."""
+        key = self._status_key(job_id)
+        self._redis.set(key, status)
+
+    def _get_status(self, job_id: str) -> str | None:
+        """작업 상태를 조회한다."""
+        key = self._status_key(job_id)
+        raw = self._redis.get(key)
+        if raw is None:
+            return None
+        if isinstance(raw, bytes):
+            return raw.decode("utf-8")
+        return str(raw)

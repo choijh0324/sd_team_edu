@@ -5,32 +5,13 @@
 
 """대화 응답 생성 노드 모듈."""
 
-import os
-import logging
+from langchain_openai import ChatOpenAI
 
-import httpx
-from pydantic import BaseModel, Field, ValidationError
-
-from secondsession.core.chat.const.error_code import ErrorCode
-from secondsession.core.chat.const import (
-    build_context,
-    get_context_budget_by_model,
-    trim_by_budget,
-    trim_keep_system_and_tool,
-)
+from secondsession.core.chat.const import ErrorCode
 from secondsession.core.chat.prompts.answer_prompt import ANSWER_PROMPT
 from secondsession.core.chat.state.chat_state import ChatState
+from secondsession.core.common.app_config import AppConfig
 from secondsession.core.common.llm_client import LlmClient
-
-_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-_DEFAULT_MODEL = "gpt-4o-mini"
-_API_URL = "https://api.openai.com/v1/chat/completions"
-
-
-class AnswerOutput(BaseModel):
-    """답변 출력 스키마."""
-
-    message: str = Field(..., min_length=1, max_length=2000)
 
 
 class AnswerNode:
@@ -53,15 +34,24 @@ class AnswerNode:
         Returns:
             ChatState: 답변 결과가 반영된 상태.
         """
-        # TODO: LLM 클라이언트를 연결한다.
-        # TODO: ANSWER_PROMPT.format으로 사용자 입력을 결합한다.
-        # TODO: state["last_user_message"]를 기반으로 답변을 생성한다.
-        # TODO: 결과를 last_assistant_message로 반환한다.
-        # TODO: 응답 스키마(Pydantic) 검증 실패 시 error_code를 설정한다.
-        # TODO: 도구 호출 실패/타임아웃 시 error_code를 설정한다.
-        # TODO: error_code가 설정된 경우 폴백 라우팅 흐름을 고려한다.
-        # TODO: ErrorCode(Enum)로 에러 유형을 고정한다.
-        _ = state["last_user_message"]
-        _ = ANSWER_PROMPT
-        _ = self._llm_client
-        raise NotImplementedError("답변 생성 로직을 구현해야 합니다.")
+        user_message = state.get("last_user_message", "")
+        llm = self._get_llm()
+        prompt = ANSWER_PROMPT.format(user_message=user_message)
+        try:
+            result = llm.invoke(prompt)
+        except TimeoutError:
+            return {"error_code": ErrorCode.TIMEOUT}
+        except Exception:
+            return {"error_code": ErrorCode.MODEL}
+
+        content = str(getattr(result, "content", result)).strip()
+        if not content:
+            return {"error_code": ErrorCode.VALIDATION}
+        return {"last_assistant_message": content}
+
+    def _get_llm(self) -> ChatOpenAI:
+        """LLM 인스턴스를 반환한다."""
+        if self._llm_client is None:
+            config = AppConfig.from_env()
+            self._llm_client = LlmClient(config)
+        return self._llm_client.chat_model()

@@ -5,7 +5,9 @@
 
 """메타데이터 스트리밍 페이로드 스키마 모듈."""
 
-from pydantic import BaseModel, Field
+from datetime import datetime, timezone
+
+from pydantic import BaseModel, Field, field_validator
 
 from secondsession.api.chat.const import MetadataEventType
 from secondsession.core.chat.const import ErrorCode, SafeguardLabel
@@ -22,6 +24,15 @@ class ChatStreamMetadata(BaseModel):
     error_code: ErrorCode | None = Field(default=None, description="에러 코드")
     safeguard_label: SafeguardLabel | None = Field(default=None, description="안전 라벨")
 
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def fill_timestamp(cls, value: str | None) -> str:
+        """timestamp 기본 값을 생성한다."""
+        if value:
+            return value
+        return datetime.now(timezone.utc).isoformat()
 
-# TODO:
-# - timestamp 기본 생성 규칙을 정의한다.
+
+# 규약:
+# - event, message는 필수다.
+# - timestamp는 ISO8601 문자열을 사용한다.

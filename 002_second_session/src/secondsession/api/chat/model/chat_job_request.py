@@ -15,6 +15,7 @@ class ChatJobRequest(BaseModel):
     history: list[dict] | None = Field(default=None, description="이전 대화 내역")
     turn_count: int | None = Field(default=None, description="누적 대화 턴 수")
     thread_id: str | None = Field(default=None, description="대화 복구용 thread_id")
+    session_id: str | None = Field(default=None, description="대화 세션 식별자")
     checkpoint_id: str | None = Field(default=None, description="복구용 체크포인트 ID")
     user_id: str | None = Field(default=None, description="요청 사용자 ID")
     metadata: dict | None = Field(default=None, description="추가 메타데이터")

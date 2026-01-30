@@ -5,20 +5,9 @@
 
 """대화 내역 업데이트 노드 모듈."""
 
-import os
+from datetime import datetime, timezone
 
-try:
-    import redis
-except ImportError:  # pragma: no cover - 환경 구성에 따라 달라짐
-    redis = None
-
-from secondsession.core.chat.const.message_normalizer import (
-    build_message_id,
-    normalize_assistant_message,
-    normalize_system_message,
-    normalize_user_message,
-)
-from secondsession.core.chat.repository import ChatHistoryRepository
+from secondsession.core.chat.const.chat_history_item import ChatHistoryItem
 from secondsession.core.chat.state.chat_state import ChatState
 
 
@@ -34,12 +23,33 @@ class AppendHistoryNode:
         Returns:
             ChatState: 대화 내역이 반영된 상태.
         """
-        # TODO: history에 사용자/어시스턴트 메시지를 추가한다.
-        # TODO: turn_count를 1 증가시킨다.
-        # TODO: reducer가 누적하므로 history는 신규 항목만 반환한다.
-        # TODO: reducer가 누적하므로 turn_count는 증가분만 반환한다.
-        # TODO: ChatHistoryItem(Pydantic)으로 항목을 검증한다.
-        _ = state.get("history", [])
-        _ = state.get("last_user_message")
-        _ = state.get("last_assistant_message")
-        raise NotImplementedError("대화 내역 갱신 로직을 구현해야 합니다.")
+        # history에 사용자/어시스턴트 메시지를 추가한다.
+        # reducer가 누적하므로 history는 신규 항목만 반환한다.
+        # reducer가 누적하므로 turn_count는 증가분만 반환한다.
+        user_message = state.get("last_user_message")
+        assistant_message = state.get("last_assistant_message")
+
+        new_items: list[dict] = []
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+        if user_message:
+            new_items.append(
+                ChatHistoryItem(
+                    role="user",
+                    content=str(user_message),
+                    created_at=timestamp,
+                ).model_dump()
+            )
+        if assistant_message:
+            new_items.append(
+                ChatHistoryItem(
+                    role="assistant",
+                    content=str(assistant_message),
+                    created_at=timestamp,
+                ).model_dump()
+            )
+
+        if not new_items:
+            return {"history": [], "turn_count": 0}
+
+        return {"history": new_items, "turn_count": 1}
