@@ -19,7 +19,7 @@ class TranslationService:
         Args:
             graph: 번역 그래프 실행기.
         """
-        raise NotImplementedError("서비스 초기화 로직을 구현해야 합니다.")
+        self._graph = graph
 
     def translate(self, request: TranslationRequest) -> TranslationResponse:
         """번역 요청을 처리한다.
@@ -30,4 +30,26 @@ class TranslationService:
         Returns:
             TranslationResponse: 번역 결과 응답.
         """
-        raise NotImplementedError("번역 서비스 처리 로직을 구현해야 합니다.")
+        initial_state = {
+            "source_language": request.source_language,
+            "target_language": request.target_language,
+            "text": request.text,
+            "normalized_text": "",
+            "safeguard_label": "",
+            "translated_text": "",
+            "qc_passed": "",
+            "retry_count": 0,
+            "max_retry_count": 3,
+            "error": "",
+        }
+        result_state = self._graph.run(initial_state)
+        return TranslationResponse(
+            source_language=result_state.get(
+                "source_language", request.source_language
+            ),
+            target_language=result_state.get(
+                "target_language", request.target_language
+            ),
+            translated_text=result_state.get("translated_text", ""),
+            error=result_state.get("error", ""),
+        )

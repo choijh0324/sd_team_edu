@@ -26,7 +26,16 @@ class TranslateRouter:
         Args:
             service: 번역 서비스.
         """
-        raise NotImplementedError("라우터 초기화 로직을 구현해야 합니다.")
+        self._service = service
+        self.router = APIRouter(prefix=API_V1_PREFIX, tags=[TRANSLATE_TAG])
+        self.router.add_api_route(
+            path=TRANSLATE_PREFIX,
+            endpoint=self.translate,
+            methods=["POST"],
+            response_model=TranslationResponse,
+            summary="번역 요청",
+            description="입력 텍스트를 대상 언어로 번역한다.",
+        )
 
     def translate(self, request: TranslationRequest) -> TranslationResponse:
         """번역 요청을 처리한다.
@@ -37,4 +46,4 @@ class TranslateRouter:
         Returns:
             TranslationResponse: 번역 결과.
         """
-        raise NotImplementedError("번역 API 처리 로직을 구현해야 합니다.")
+        return self._service.translate(request)

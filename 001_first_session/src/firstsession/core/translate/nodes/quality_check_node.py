@@ -5,6 +5,10 @@
 
 """번역 품질 검사 노드 모듈."""
 
+from firstsession.core.translate.nodes.call_model_node import CallModelNode
+from firstsession.core.translate.prompts.quality_check_prompt import (
+    QUALITY_CHECK_PROMPT,
+)
 from firstsession.core.translate.state.translation_state import TranslationState
 
 
@@ -20,6 +24,25 @@ class QualityCheckNode:
         Returns:
             TranslationState: 품질 검사 결과가 포함된 상태.
         """
-        # TODO: 품질 검사 프롬프트로 YES/NO를 판정한다.
-        # TODO: 결과를 qc_passed 필드에 기록하는 규칙을 정의한다.
-        raise NotImplementedError("품질 검사 로직을 구현해야 합니다.")
+        source_text = state.get("normalized_text") or state.get("text", "")
+        translated_text = state.get("translated_text", "")
+
+        prompt = QUALITY_CHECK_PROMPT.format(
+            source_text=source_text,
+            translated_text=translated_text,
+        )
+        raw_output = CallModelNode().run(prompt)
+        qc_passed = self._normalize_decision(raw_output)
+
+        updated_state = dict(state)
+        updated_state["qc_passed"] = qc_passed
+        return updated_state
+
+    def _normalize_decision(self, raw_output: str) -> str:
+        """모델 출력에서 YES/NO를 정규화한다."""
+        cleaned = raw_output.strip().upper()
+        if cleaned == "YES":
+            return "YES"
+        if cleaned == "NO":
+            return "NO"
+        return "NO"

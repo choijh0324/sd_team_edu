@@ -5,6 +5,8 @@
 
 """번역 수행 노드 모듈."""
 
+from firstsession.core.translate.nodes.call_model_node import CallModelNode
+from firstsession.core.translate.prompts.translation_prompt import TRANSLATION_PROMPT
 from firstsession.core.translate.state.translation_state import TranslationState
 
 
@@ -20,6 +22,17 @@ class TranslateNode:
         Returns:
             TranslationState: 번역 결과가 포함된 상태.
         """
-        # TODO: 번역 프롬프트를 구성하고 모델/외부 API를 호출한다.
-        # TODO: 번역 결과를 상태에 기록하는 규칙을 정의한다.
-        raise NotImplementedError("번역 수행 로직을 구현해야 합니다.")
+        source_language = state.get("source_language", "")
+        target_language = state.get("target_language", "")
+        text = state.get("normalized_text") or state.get("text", "")
+
+        prompt = TRANSLATION_PROMPT.format(
+            source_language=source_language,
+            target_language=target_language,
+            text=text,
+        )
+        translated_text = CallModelNode().run(prompt)
+
+        updated_state = dict(state)
+        updated_state["translated_text"] = translated_text
+        return updated_state

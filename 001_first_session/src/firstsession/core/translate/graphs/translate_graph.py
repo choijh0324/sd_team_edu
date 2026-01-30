@@ -5,9 +5,23 @@
 
 """번역 그래프 구성 모듈."""
 
+import logging
+
 from langgraph.graph import END, StateGraph
 
 from firstsession.core.translate.state.translation_state import TranslationState
+from firstsession.core.translate.nodes.normalize_input_node import NormalizeInputNode
+from firstsession.core.translate.nodes.postprocess_node import PostprocessNode
+from firstsession.core.translate.nodes.quality_check_node import QualityCheckNode
+from firstsession.core.translate.nodes.response_node import ResponseNode
+from firstsession.core.translate.nodes.retry_gate_node import RetryGateNode
+from firstsession.core.translate.nodes.retry_translate_node import RetryTranslateNode
+from firstsession.core.translate.nodes.safeguard_classify_node import SafeguardClassifyNode
+from firstsession.core.translate.nodes.safeguard_decision_node import SafeguardDecisionNode
+from firstsession.core.translate.nodes.safeguard_fail_response_node import (
+    SafeguardFailResponseNode,
+)
+from firstsession.core.translate.nodes.translate_node import TranslateNode
 
 
 class TranslateGraph:
@@ -15,7 +29,8 @@ class TranslateGraph:
 
     def __init__(self) -> None:
         """그래프를 초기화한다."""
-        raise NotImplementedError("번역 그래프 초기화 로직을 구현해야 합니다.")
+        self._logger = logging.getLogger(__name__)
+        self._graph = self._build_graph().compile()
 
     def run(self, state: TranslationState) -> TranslationState:
         """번역 그래프를 실행한다.
@@ -26,7 +41,10 @@ class TranslateGraph:
         Returns:
             TranslationState: 번역 결과 상태.
         """
-        raise NotImplementedError("번역 그래프 실행 로직을 구현해야 합니다.")
+        self._logger.info("그래프 시작 상태: %s", state)
+        result = self._graph.invoke(state)
+        self._logger.info("그래프 종료 상태: %s", result)
+        return result
 
     def _build_graph(self) -> StateGraph:
         """번역 그래프를 구성한다.
@@ -34,7 +52,53 @@ class TranslateGraph:
         Returns:
             StateGraph: 구성된 그래프.
         """
+        graph = StateGraph(TranslationState)
 
+<<<<<<< HEAD
+        graph.add_node(
+            "normalize_input",
+            self._wrap_node("normalize_input", NormalizeInputNode().run),
+        )
+        graph.add_node(
+            "safeguard_classify",
+            self._wrap_node("safeguard_classify", SafeguardClassifyNode().run),
+        )
+        graph.add_node(
+            "safeguard_decision",
+            self._wrap_node("safeguard_decision", SafeguardDecisionNode().run),
+        )
+        graph.add_node(
+            "safeguard_fail_response",
+            self._wrap_node(
+                "safeguard_fail_response",
+                SafeguardFailResponseNode().run,
+            ),
+        )
+        graph.add_node(
+            "translate",
+            self._wrap_node("translate", TranslateNode().run),
+        )
+        graph.add_node(
+            "postprocess",
+            self._wrap_node("postprocess", PostprocessNode().run),
+        )
+        graph.add_node(
+            "quality_check",
+            self._wrap_node("quality_check", QualityCheckNode().run),
+        )
+        graph.add_node(
+            "retry_gate",
+            self._wrap_node("retry_gate", RetryGateNode().run),
+        )
+        graph.add_node(
+            "retry_translate",
+            self._wrap_node("retry_translate", RetryTranslateNode().run),
+        )
+        graph.add_node(
+            "response",
+            self._wrap_node("response", ResponseNode().run),
+        )
+=======
         # TODO: START 노드에서 시작하는 흐름을 명시한다.
         # - START -> NormalizeInputNode
         # TODO: 노드 등록 방식은 두 가지 모두 가능하다.
@@ -51,18 +115,61 @@ class TranslateGraph:
         # - RetryGateNode: 재번역 가능 여부 판단
         # - RetryTranslateNode: 재번역 수행
         # - ResponseNode: 최종 응답 구성
+>>>>>>> origin/main
 
-        # TODO: 조건부 엣지 설계(구체 경로 예시)
-        # - NormalizeInputNode -> SafeguardClassifyNode -> SafeguardDecisionNode
-        # - SafeguardDecisionNode에서 PASS가 아니면 SafeguardFailResponseNode -> ResponseNode -> END
-        #   - safeguard_label: PASS/PII/HARMFUL/PROMPT_INJECTION (안전 분류 결과)
-        #   - error_message: 차단 시 사용자에게 전달할 메시지
-        # - PASS면 TranslateNode -> QualityCheckNode -> RetryGateNode
-        # - RetryGateNode에서 qc_passed가 YES이면 ResponseNode -> END
-        #   - qc_passed: YES/NO (번역 품질 검사 결과)
-        # - RetryGateNode에서 qc_passed가 NO이고 재시도 가능하면 RetryTranslateNode -> QualityCheckNode로 루프
-        #   - retry_count: 재시도 횟수
-        #   - max_retry_count: 최대 재시도 횟수
-        # - RetryGateNode에서 qc_passed가 NO이고 재시도 불가이면 ResponseNode -> END
-        
-        raise NotImplementedError("번역 그래프 구성 로직을 구현해야 합니다.")
+        graph.set_entry_point("normalize_input")
+        graph.add_edge("normalize_input", "safeguard_classify")
+        graph.add_edge("safeguard_classify", "safeguard_decision")
+        graph.add_conditional_edges(
+            "safeguard_decision",
+            self._route_safeguard,
+            {
+                "pass": "translate",
+                "fail": "safeguard_fail_response",
+            },
+        )
+        graph.add_edge("safeguard_fail_response", "response")
+        graph.add_edge("translate", "postprocess")
+        graph.add_edge("postprocess", "quality_check")
+        graph.add_edge("quality_check", "retry_gate")
+        graph.add_conditional_edges(
+            "retry_gate",
+            self._route_retry,
+            {
+                "pass": "response",
+                "retry": "retry_translate",
+                "fail": "response",
+            },
+        )
+        graph.add_edge("retry_translate", "postprocess")
+        graph.add_edge("response", END)
+
+        return graph
+
+    def _wrap_node(self, name: str, handler):
+        """노드 실행 전후로 상태를 로깅하는 래퍼를 생성한다."""
+
+        def _wrapped(state: TranslationState) -> TranslationState:
+            self._logger.info("노드 진입: %s, 상태=%s", name, state)
+            result = handler(state)
+            self._logger.info("노드 종료: %s, 상태=%s", name, result)
+            return result
+
+        return _wrapped
+
+    def _route_safeguard(self, state: TranslationState) -> str:
+        """안전 분류 결과에 따라 다음 경로를 선택한다."""
+        label = state.get("safeguard_label", "")
+        return "pass" if label == "PASS" else "fail"
+
+    def _route_retry(self, state: TranslationState) -> str:
+        """품질 검사 결과와 재시도 횟수로 다음 경로를 선택한다."""
+        qc_passed = state.get("qc_passed", "")
+        if qc_passed == "YES":
+            return "pass"
+
+        retry_count = int(state.get("retry_count", 0) or 0)
+        max_retry_count = int(state.get("max_retry_count", 3) or 3)
+        if retry_count < max_retry_count:
+            return "retry"
+        return "fail"

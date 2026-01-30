@@ -20,6 +20,13 @@ class ResponseNode:
         Returns:
             TranslationState: 응답 구성이 완료된 상태.
         """
-        # TODO: 최종 응답에 필요한 필드만 추려 상태를 정리한다.
-        # TODO: 에러 메시지와 성공 응답의 우선순위를 정의한다.
-        raise NotImplementedError("응답 구성 로직을 구현해야 합니다.")
+        error_message = state.get("error", "")
+        translated_text = state.get("translated_text", "")
+
+        response_state = {
+            "source_language": state.get("source_language", ""),
+            "target_language": state.get("target_language", ""),
+            "translated_text": translated_text if not error_message else "",
+            "error": error_message,
+        }
+        return response_state

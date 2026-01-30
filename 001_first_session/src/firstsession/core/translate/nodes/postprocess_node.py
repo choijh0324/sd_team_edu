@@ -20,6 +20,13 @@ class PostprocessNode:
         Returns:
             TranslationState: 후처리된 상태.
         """
-        # TODO: 번역 결과 검증과 정규화 기준을 구현한다.
-        # TODO: 오류 발생 시 표준 에러 메시지로 치환한다.
-        raise NotImplementedError("후처리 로직을 구현해야 합니다.")
+        updated_state = dict(state)
+        translated_text = updated_state.get("translated_text", "")
+        normalized_text = " ".join(translated_text.split()).strip()
+        updated_state["translated_text"] = normalized_text
+
+        if not normalized_text:
+            updated_state["error"] = "번역 결과가 비어 있습니다."
+            updated_state["qc_passed"] = "NO"
+
+        return updated_state

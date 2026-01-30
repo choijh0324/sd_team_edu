@@ -12,10 +12,15 @@ _QUALITY_CHECK_PROMPT = dedent(
     """\
 You are a translation quality reviewer.
 
-[Criteria]
-- Is the meaning of the source preserved without omissions or distortion?
-- Are proper nouns, numbers, and code preserved without unnecessary changes?
-- Is the translation natural in the target language?
+[Evaluation Criteria]
+1. Accuracy: Is the source meaning conveyed correctly without omissions or distortion?
+2. Fluency: Does the translation sound natural to target-language speakers?
+3. Style & Tone: Is the original mood, intent, and tone preserved?
+4. Context Awareness: Is the meaning preserved with full context, not just sentence-level?
+5. Terminology Consistency: Are terms and concepts translated consistently?
+6. Cultural Appropriateness: Is it culturally appropriate and free of potential misunderstandings?
+7. Readability & Flow: Is the translation easy to read and well-paced?
+8. Functional Adequacy: Is the translation fit for its intended use?
 
 [Rules]
 - Output must be exactly one word: YES or NO.

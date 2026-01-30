@@ -5,11 +5,34 @@
 
 """FastAPI 애플리케이션 진입점 모듈."""
 
+import logging
+import os
+from logging.handlers import RotatingFileHandler
+
 from fastapi import FastAPI
 
 from firstsession.api.translate.router.translate_router import TranslateRouter
 from firstsession.api.translate.service.translation_service import TranslationService
 from firstsession.core.translate.graphs.translate_graph import TranslateGraph
+
+
+def _configure_logging() -> None:
+    """로그 설정을 초기화한다."""
+    os.makedirs("logs", exist_ok=True)
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s - %(message)s"
+    )
+    file_handler = RotatingFileHandler(
+        "logs/firstsession.log",
+        maxBytes=2 * 1024 * 1024,
+        backupCount=5,
+    )
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(file_handler)
 
 
 def create_app() -> FastAPI:
@@ -18,6 +41,7 @@ def create_app() -> FastAPI:
     Returns:
         FastAPI: 구성된 애플리케이션 인스턴스.
     """
+    _configure_logging()
     app = FastAPI(title="firstsession API")
 
     @app.get("/health", tags=["health"])

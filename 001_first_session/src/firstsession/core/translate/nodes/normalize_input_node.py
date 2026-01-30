@@ -20,6 +20,29 @@ class NormalizeInputNode:
         Returns:
             TranslationState: 정규화된 상태.
         """
-        # TODO: 언어 코드 표준화, 공백 정리, 길이 제한 규칙을 구현한다.
-        # TODO: 금칙어/민감 정보 처리 기준을 정의한다.
-        raise NotImplementedError("입력 정규화 로직을 구현해야 합니다.")
+        normalized_state = dict(state)
+        normalized_state["source_language"] = self._normalize_language_code(
+            state.get("source_language", "")
+        )
+        normalized_state["target_language"] = self._normalize_language_code(
+            state.get("target_language", "")
+        )
+
+        text = state.get("text", "")
+        normalized_text = self._normalize_text(text)
+        normalized_state["normalized_text"] = normalized_text
+
+        if not normalized_text:
+            normalized_state["error"] = "번역할 텍스트가 비어 있습니다."
+
+        return normalized_state
+
+    def _normalize_language_code(self, language_code: str) -> str:
+        """언어 코드를 표준화한다."""
+        cleaned = language_code.strip().replace("_", "-").lower()
+        return cleaned
+
+    def _normalize_text(self, text: str) -> str:
+        """텍스트를 정리한다."""
+        collapsed = " ".join(text.split())
+        return collapsed.strip()

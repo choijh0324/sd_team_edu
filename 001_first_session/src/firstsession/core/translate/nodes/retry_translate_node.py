@@ -5,6 +5,10 @@
 
 """재번역 노드 모듈."""
 
+from firstsession.core.translate.nodes.call_model_node import CallModelNode
+from firstsession.core.translate.prompts.retry_translate_prompt import (
+    RETRY_TRANSLATE_PROMPT,
+)
 from firstsession.core.translate.state.translation_state import TranslationState
 
 
@@ -20,6 +24,14 @@ class RetryTranslateNode:
         Returns:
             TranslationState: 재번역 결과가 포함된 상태.
         """
-        # TODO: 재번역 프롬프트로 품질 개선 번역을 수행한다.
-        # TODO: 재번역 결과와 재시도 횟수를 갱신한다.
-        raise NotImplementedError("재번역 로직을 구현해야 합니다.")
+        source_text = state.get("normalized_text") or state.get("text", "")
+        failed_translation = state.get("translated_text", "")
+        prompt = RETRY_TRANSLATE_PROMPT.format(
+            source_text=source_text,
+            failed_translation=failed_translation,
+        )
+        improved_translation = CallModelNode().run(prompt)
+
+        updated_state = dict(state)
+        updated_state["translated_text"] = improved_translation
+        return updated_state

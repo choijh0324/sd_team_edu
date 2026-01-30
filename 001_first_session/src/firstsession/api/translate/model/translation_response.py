@@ -14,3 +14,4 @@ class TranslationResponse(BaseModel):
     source_language: str = Field(..., description="원문 언어 코드")
     target_language: str = Field(..., description="목표 언어 코드")
     translated_text: str = Field(..., description="번역된 텍스트")
+    error: str = Field("", description="오류 메시지")

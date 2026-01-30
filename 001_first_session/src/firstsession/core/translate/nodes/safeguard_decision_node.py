@@ -5,6 +5,7 @@
 
 """안전 분류 결정 노드 모듈."""
 
+from firstsession.core.translate.const.safeguard_messages import SafeguardMessage
 from firstsession.core.translate.state.translation_state import TranslationState
 
 
@@ -20,6 +21,18 @@ class SafeguardDecisionNode:
         Returns:
             TranslationState: 결정 결과가 포함된 상태.
         """
-        # TODO: PASS 여부를 확인하고 error_message를 설정한다.
-        # TODO: SafeguardMessage Enum과의 매핑 규칙을 정의한다.
-        raise NotImplementedError("안전 분류 결정 로직을 구현해야 합니다.")
+        updated_state = dict(state)
+        label = state.get("safeguard_label", "")
+        if label == "PASS":
+            updated_state["error"] = ""
+            return updated_state
+
+        message_map = {
+            "PII": SafeguardMessage.PII.value,
+            "HARMFUL": SafeguardMessage.HARMFUL.value,
+            "PROMPT_INJECTION": SafeguardMessage.PROMPT_INJECTION.value,
+        }
+        updated_state["error"] = message_map.get(
+            label, "안전 분류 결과를 확인할 수 없습니다."
+        )
+        return updated_state

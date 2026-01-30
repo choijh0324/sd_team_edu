@@ -20,6 +20,21 @@ class RetryGateNode:
         Returns:
             TranslationState: 게이트 판단 결과가 포함된 상태.
         """
-        # TODO: retry_count와 max_retry_count 기준으로 재번역 여부를 판단한다.
-        # TODO: qc_passed 결과에 따른 분기 규칙을 정의한다.
-        raise NotImplementedError("재번역 게이트 로직을 구현해야 합니다.")
+        updated_state = dict(state)
+        qc_passed = updated_state.get("qc_passed", "")
+        if qc_passed == "YES":
+            return updated_state
+
+        updated_state["retry_count"] = int(
+            updated_state.get("retry_count", 0) or 0
+        ) + 1
+
+        retry_count = int(updated_state.get("retry_count", 0) or 0)
+        max_retry_count = int(updated_state.get("max_retry_count", 3) or 3)
+        updated_state["max_retry_count"] = max_retry_count
+
+        if retry_count < max_retry_count:
+            return updated_state
+
+        updated_state["error"] = "재시도 횟수 초과로 번역을 완료하지 못했습니다."
+        return updated_state
