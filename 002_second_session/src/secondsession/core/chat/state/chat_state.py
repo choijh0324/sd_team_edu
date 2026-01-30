@@ -29,6 +29,13 @@ def add_turn(existing: int, incoming: int | None) -> int:
     return existing + incoming
 
 
+def add_candidates(existing: list[str], incoming: list[str] | None) -> list[str]:
+    """병렬 후보 응답을 누적한다."""
+    if incoming is None:
+        return existing
+    return existing + incoming
+
+
 class ChatState(TypedDict):
     """대화 그래프 상태 스키마."""
 
@@ -37,12 +44,7 @@ class ChatState(TypedDict):
     turn_count: Annotated[int, add_turn]
     last_user_message: str
     last_assistant_message: str | None
-    user_message: str | None
-    thread_id: str | None
-    user_id: str | None
-    # 병렬 그래프 후보 결과(선택적으로 사용)
-    candidate_a: str | None
-    candidate_b: str | None
+    candidates: Annotated[list[str], add_candidates]
     # TODO:
     # - error_code/safeguard_label을 기준으로 폴백 메시지를 결정한다.
     # - safeguard_label이 PASS가 아니면 SAFEGUARD 에러 코드를 우선한다.
@@ -51,4 +53,6 @@ class ChatState(TypedDict):
     route: str | None
     error_code: ErrorCode | None
     trace_id: str | None
-    seq: int | None
+    thread_id: str | None
+    session_id: str | None
+    history_persisted: bool | None

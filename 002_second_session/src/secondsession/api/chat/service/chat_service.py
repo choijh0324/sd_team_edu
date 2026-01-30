@@ -1,6 +1,6 @@
 # 목적: 대화 서비스 인터페이스를 정의한다.
 # 설명: 라우터가 호출할 서비스 메서드 시그니처를 제공한다.
-# 디자인 패턴: 서비스 레이어
+# 디자인 패턴: 서비스 레이어 패턴
 # 참조: secondsession/api/chat/router/chat_router.py
 
 """대화 서비스 인터페이스 모듈."""
@@ -18,14 +18,7 @@ from secondsession.api.chat.model import (
     ChatJobStatusResponse,
     ChatJobCancelResponse,
 )
-from secondsession.api.chat.const import StreamEventType, MetadataEventType
-from secondsession.core.common.queue import ChatJobQueue, ChatStreamEventQueue
-from secondsession.core.chat.repository import ChatHistoryRepository
-
-try:
-    import redis
-except ImportError:  # pragma: no cover - 환경 구성에 따라 달라짐
-    redis = None
+from secondsession.core.chat.graphs.chat_graph import ChatGraph
 
 
 class ChatService:

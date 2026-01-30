@@ -5,6 +5,6 @@
 
 """채팅 API 패키지."""
 
-from secondsession.api.chat.router import chat_router
+from secondsession.api.chat.router import ChatRouter
 
-__all__ = ["chat_router"]
+__all__ = ["ChatRouter"]

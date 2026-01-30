@@ -16,6 +16,34 @@
 - 코드 템플릿: `src/thirdsession/`
 - RAG 엔드포인트: `/rag_chat`
 
+## 사전 준비
+
+- Postgres 설치 및 구동
+- PGVector 확장 설치 및 활성화
+  - DB에서 `CREATE EXTENSION vector;` 실행
+
+### Ubuntu 기준 설치 가이드(요약)
+
+아래 명령은 **Ubuntu 환경 기준**입니다. 로컬 환경/버전에 맞게 조정하세요.
+
+```bash
+# 1) PostgreSQL 설치 및 서비스 시작
+sudo apt update
+sudo apt install -y postgresql postgresql-contrib
+sudo systemctl enable --now postgresql
+
+# 2) PostgreSQL 버전 확인
+psql --version
+
+# 3) PGVector 설치(버전에 맞는 패키지 선택)
+# 예: PostgreSQL 16 → postgresql-16-pgvector
+sudo apt install -y postgresql-16-pgvector
+
+# 4) DB 접속 후 확장 활성화
+sudo -u postgres psql
+CREATE EXTENSION vector;
+```
+
 ## 구현해야 하는 과제
 
 아래 항목은 코드의 `TODO`/`NotImplementedError`를 기준으로 정리했습니다.  
@@ -112,19 +140,12 @@
 - `src/thirdsession/core/chat/prompts/answer_prompt.py`
   - 답변 생성 프롬프트 정의
 
-### 7) 후처리 구성
+### 7) 후처리 구성(LLM 기반)
 
 - `src/thirdsession/core/postprocessing/postprocess_pipeline.py`
   - 정책 필터/중복 제거/다양성/재정렬/압축 구현
 - `src/thirdsession/core/postprocessing/llm_reranker.py`
   - LLM 재정렬기 구현
-- `src/thirdsession/core/postprocessing/cross_encoder_reranker.py`
-  - Cross-Encoder 재정렬기 구현
-
-### 8) 선택 과제: 테스트 코드 작성
-
-- `pytest` 기반으로 핵심 흐름 테스트 작성
-- **모킹 없이** 실제 로직을 검증하는 테스트 설계
 
 ---
 

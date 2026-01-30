@@ -1,6 +1,6 @@
 # 목적: 병렬 대화 그래프 예제를 제공한다.
 # 설명: 팬아웃/팬인 구조로 병렬 결과를 합류한다.
-# 디자인 패턴: Pipeline, Fan-out/Fan-in
+# 디자인 패턴: 파이프라인 + 빌더
 # 참조: docs/01_langgraph_to_service/04_병렬_그래프_설계.md
 
 """병렬 대화 그래프 구성 모듈."""
@@ -14,6 +14,7 @@ from langgraph.graph import StateGraph, END
 
 from secondsession.core.chat.const.error_code import ErrorCode
 from secondsession.core.chat.state.chat_state import ChatState
+from secondsession.core.common.llm_client import LlmClient
 
 _OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 _DEFAULT_MODEL = "gpt-4o-mini"
@@ -46,11 +47,15 @@ class BarrierPolicy:
         return self.required_keys.issubset(results.keys())
 
 
-def build_parallel_chat_graph(checkpointer) -> object:
-    """병렬 대화 그래프를 생성한다.
+class ParallelChatGraph:
+    """병렬 대화 그래프 실행기."""
 
-    Args:
-        checkpointer: LangGraph 체크포인터 인스턴스.
+    def __init__(
+        self,
+        checkpointer: Any | None = None,
+        llm_client: LlmClient | None = None,
+    ) -> None:
+        """그래프를 초기화한다.
 
     Returns:
         object: 컴파일된 LangGraph 애플리케이션.

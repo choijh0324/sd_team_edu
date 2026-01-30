@@ -23,7 +23,7 @@ class ChatJobQueue:
         self._redis = redis_client
         self._key = key
 
-    def enqueue(self, payload: dict) -> None:
+    async def enqueue(self, payload: dict) -> None:
         """작업을 큐에 적재한다.
 
         TODO:
@@ -48,7 +48,7 @@ class ChatJobQueue:
             logger.exception("작업 큐 적재 실패: %s", exc)
             raise
 
-    def dequeue(self) -> dict | None:
+    async def dequeue(self) -> dict | None:
         """작업을 큐에서 꺼낸다.
 
         TODO:

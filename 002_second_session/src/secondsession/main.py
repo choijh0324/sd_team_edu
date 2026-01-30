@@ -7,7 +7,11 @@
 
 from fastapi import FastAPI
 
-from secondsession.api.chat import chat_router
+from secondsession.api.chat.router.chat_router import ChatRouter
+from secondsession.api.chat.service.chat_service import ChatService
+from secondsession.core.chat.graphs.chat_graph import ChatGraph
+from secondsession.core.common.app_config import AppConfig
+from secondsession.core.common.llm_client import LlmClient
 
 
 def create_app() -> FastAPI:
@@ -23,7 +27,12 @@ def create_app() -> FastAPI:
         """간단한 헬스 체크 엔드포인트."""
         return {"status": "ok"}
 
-    app.include_router(chat_router)
+    config = AppConfig.from_env()
+    llm_client = LlmClient(config)
+    graph = ChatGraph(llm_client=llm_client)
+    service = ChatService(graph)
+    chat_router = ChatRouter(service)
+    app.include_router(chat_router.router)
 
     return app
 

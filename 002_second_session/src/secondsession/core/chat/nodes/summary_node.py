@@ -1,73 +1,43 @@
 # 목적: 대화 요약 노드를 정의한다.
 # 설명: 대화 내역을 요약해 summary에 저장한다.
-# 디자인 패턴: 커맨드
+# 디자인 패턴: 전략 패턴 + 파이프라인 노드
 # 참조: secondsession/core/chat/graphs/chat_graph.py
 
 """대화 요약 노드 모듈."""
 
-import os
-
-import httpx
-
-from secondsession.core.chat.const.error_code import ErrorCode
-from secondsession.core.chat.state.chat_state import ChatState
 from secondsession.core.chat.prompts.summary_prompt import SUMMARY_PROMPT
+from secondsession.core.chat.state.chat_state import ChatState
+from secondsession.core.common.llm_client import LlmClient
 
 _OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 _DEFAULT_MODEL = "gpt-4o-mini"
 _API_URL = "https://api.openai.com/v1/chat/completions"
 
 
-def summary_node(state: ChatState) -> dict:
-    """대화 요약을 생성한다.
+class SummaryNode:
+    """대화 요약을 생성하는 노드."""
 
-    TODO:
-        - LLM 클라이언트를 연결한다.
-        - SUMMARY_PROMPT.format으로 state["history"]를 결합한다.
-        - summary 값을 반환한다.
-    """
-    history = state.get("history", [])
-    summary_input = _build_summary_input(history)
-    prompt = SUMMARY_PROMPT.format(chat_history=summary_input)
-    summary = _call_openai(prompt)
-    if not summary:
-        return {
-            "summary": "",
-            "error_code": ErrorCode.MODEL,
-        }
-    return {"summary": summary}
+    def __init__(self, llm_client: LlmClient | None = None) -> None:
+        """노드 의존성을 초기화한다.
 
+        Args:
+            llm_client: LLM 클라이언트(선택).
+        """
+        self._llm_client = llm_client
 
-def _build_summary_input(history: list[dict]) -> str:
-    """요약 입력 문자열을 만든다."""
-    return "\n".join([f"{m.get('role')}: {m.get('content')}" for m in history])
+    def run(self, state: ChatState) -> ChatState:
+        """대화 요약을 생성한다.
 
+        Args:
+            state: 현재 대화 상태.
 
-def _call_openai(prompt: str) -> str:
-    """OpenAI Chat Completions API로 요약을 생성한다."""
-    if not prompt:
-        return ""
-    if not _OPENAI_API_KEY:
-        return ""
-
-    headers = {
-        "Authorization": f"Bearer {_OPENAI_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": _DEFAULT_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.2,
-    }
-    try:
-        with httpx.Client(timeout=20.0) as client:
-            response = client.post(_API_URL, headers=headers, json=payload)
-            response.raise_for_status()
-    except httpx.HTTPError:
-        return ""
-    data = response.json()
-    choices = data.get("choices", [])
-    if not choices:
-        return ""
-    message = choices[0].get("message", {})
-    return (message.get("content") or "").strip()
+        Returns:
+            ChatState: 요약 결과가 반영된 상태.
+        """
+        # TODO: LLM 클라이언트를 연결한다.
+        # TODO: SUMMARY_PROMPT.format으로 state["history"]를 결합한다.
+        # TODO: summary 값을 반환한다.
+        _ = SUMMARY_PROMPT
+        _ = state.get("history", [])
+        _ = self._llm_client
+        raise NotImplementedError("요약 노드 로직을 구현해야 합니다.")

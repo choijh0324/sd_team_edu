@@ -1,4 +1,6 @@
-"""AsyncRedisClusterCheckpointSaver - LangGraph용 Redis Cluster 기반 비동기 체크포인트 저장소
+"""참고용 자료: 본 구현에서는 사용하지 않으며, 공식 라이브러리 기반 구현 방향을 정리한다.
+
+AsyncRedisClusterCheckpointSaver - LangGraph용 Redis Cluster 기반 비동기 체크포인트 저장소
 
 이 모듈은 LangGraph의 상태 관리를 위한 Redis Cluster 기반 비동기 체크포인트 저장소를 제공합니다.
 Redis Cluster 환경에서 안정적으로 동작하며, TTL 기반 자동 만료 기능을 지원합니다.

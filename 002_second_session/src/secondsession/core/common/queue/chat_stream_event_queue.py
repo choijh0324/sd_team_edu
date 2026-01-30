@@ -23,7 +23,7 @@ class ChatStreamEventQueue:
         self._redis = redis_client
         self._key_prefix = key_prefix
 
-    def push_event(self, job_id: str, event: dict) -> None:
+    async def push_event(self, job_id: str, event: dict) -> None:
         """이벤트를 큐에 적재한다.
 
         TODO:
@@ -50,7 +50,7 @@ class ChatStreamEventQueue:
             logger.exception("이벤트 적재 실패: %s", exc)
             raise
 
-    def pop_event(self, job_id: str) -> dict | None:
+    async def pop_event(self, job_id: str) -> dict | None:
         """이벤트를 큐에서 꺼낸다.
 
         TODO:

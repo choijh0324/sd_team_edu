@@ -5,26 +5,26 @@
 
 """대화 코어 패키지."""
 
-from secondsession.core.chat.graphs import build_chat_graph, ChatState
+from secondsession.core.chat.graphs import ChatGraph, ChatState
 from secondsession.core.chat.nodes import (
-    summary_node,
-    answer_node,
-    safeguard_node,
-    fallback_node,
-    append_history_node,
-    decide_summary_node,
+    SummaryNode,
+    AnswerNode,
+    SafeguardNode,
+    FallbackNode,
+    AppendHistoryNode,
+    DecideSummaryNode,
 )
 from secondsession.core.chat.prompts import ANSWER_PROMPT, SAFEGUARD_PROMPT, SUMMARY_PROMPT
 
 __all__ = [
-    "build_chat_graph",
+    "ChatGraph",
     "ChatState",
-    "summary_node",
-    "answer_node",
-    "safeguard_node",
-    "fallback_node",
-    "append_history_node",
-    "decide_summary_node",
+    "SummaryNode",
+    "AnswerNode",
+    "SafeguardNode",
+    "FallbackNode",
+    "AppendHistoryNode",
+    "DecideSummaryNode",
     "ANSWER_PROMPT",
     "SAFEGUARD_PROMPT",
     "SUMMARY_PROMPT",
