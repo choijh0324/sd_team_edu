@@ -15,8 +15,6 @@
 - 교재 문서: `docs/`
 - 코드 템플릿: `src/thirdsession/`
 - RAG 엔드포인트: `/api/v1/rag`
-- 채팅 잡 엔드포인트: `/api/v1/chat/*`
-- 업데이트 설계서: `nextStep.md`
 
 ## 현재 구현 상태
 
