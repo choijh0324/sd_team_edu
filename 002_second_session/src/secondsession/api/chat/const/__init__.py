@@ -6,5 +6,6 @@
 """대화 API 상수 패키지."""
 
 from secondsession.api.chat.const.stream_event_type import StreamEventType
+from secondsession.api.chat.const.metadata_event_type import MetadataEventType
 
-__all__ = ["StreamEventType"]
+__all__ = ["StreamEventType", "MetadataEventType"]

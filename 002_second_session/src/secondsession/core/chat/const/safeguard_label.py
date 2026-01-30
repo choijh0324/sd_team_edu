@@ -11,6 +11,11 @@ from enum import Enum
 class SafeguardLabel(Enum):
     """안전 분류 라벨."""
 
+    # 라벨 정책
+    # - PASS: 정상 처리
+    # - PII: 개인정보 포함 가능성 → 차단 + 안전 안내
+    # - HARMFUL: 유해/위험 요청 → 차단 + 안전 안내
+    # - PROMPT_INJECTION: 보안 우회 시도 → 차단 + 보안 경고
     PASS = "PASS"
     PII = "PII"
     HARMFUL = "HARMFUL"

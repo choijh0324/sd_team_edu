@@ -19,6 +19,9 @@ class InMemoryCheckpointer:
         Args:
             keep_last: thread_id별로 유지할 최신 체크포인트 개수. None이면 제한 없음.
         """
+        # 동시성 주의:
+        # - 멀티 스레드 환경에서는 _store/_version 접근이 경합될 수 있습니다.
+        # - 실제 운영에서는 락(예: threading.Lock)으로 save/load를 감싸는 정책이 필요합니다.
         self._store: dict[str, dict[str, dict[str, Any]]] = {}
         self._version: dict[str, int] = {}
         self._keep_last = keep_last
@@ -31,10 +34,18 @@ class InMemoryCheckpointer:
             - state/metadata를 저장하고 checkpoint_id를 반환한다.
             - keep_last 정책으로 오래된 스냅샷을 정리한다.
         """
-        _ = thread_id
-        _ = state
-        _ = metadata
-        raise NotImplementedError("인메모리 체크포인터 저장 로직을 구현해야 합니다.")
+        version = self._version.get(thread_id, 0) + 1
+        self._version[thread_id] = version
+        checkpoint_id = f"{thread_id}:{version}"
+
+        if thread_id not in self._store:
+            self._store[thread_id] = {}
+        self._store[thread_id][checkpoint_id] = {
+            "state": dict(state),
+            "metadata": dict(metadata),
+        }
+        self._cleanup(thread_id)
+        return checkpoint_id
 
     def load(self, thread_id: str, checkpoint_id: str) -> dict[str, Any] | None:
         """특정 checkpoint_id의 스냅샷을 복구한다.
@@ -43,9 +54,14 @@ class InMemoryCheckpointer:
             - thread_id와 checkpoint_id로 저장된 스냅샷을 조회한다.
             - 없으면 None을 반환한다.
         """
-        _ = thread_id
-        _ = checkpoint_id
-        raise NotImplementedError("인메모리 체크포인터 복구 로직을 구현해야 합니다.")
+        snapshot = self._store.get(thread_id, {}).get(checkpoint_id)
+        if snapshot is None:
+            return None
+        return {
+            "checkpoint_id": checkpoint_id,
+            "state": dict(snapshot["state"]),
+            "metadata": dict(snapshot["metadata"]),
+        }
 
     def load_latest(self, thread_id: str) -> dict[str, Any] | None:
         """가장 최신 스냅샷을 복구한다.
@@ -54,5 +70,28 @@ class InMemoryCheckpointer:
             - thread_id의 최신 checkpoint_id를 찾는다.
             - 최신 스냅샷이 없으면 None을 반환한다.
         """
-        _ = thread_id
-        raise NotImplementedError("인메모리 최신 스냅샷 복구 로직을 구현해야 합니다.")
+        latest_version = self._version.get(thread_id)
+        if not latest_version:
+            return None
+        checkpoint_id = f"{thread_id}:{latest_version}"
+        return self.load(thread_id, checkpoint_id)
+
+    def _cleanup(self, thread_id: str) -> None:
+        """keep_last 정책으로 오래된 스냅샷을 정리한다."""
+        if self._keep_last is None:
+            return
+        if self._keep_last <= 0:
+            self._store[thread_id] = {}
+            return
+        latest_version = self._version.get(thread_id, 0)
+        min_version = max(1, latest_version - self._keep_last + 1)
+        to_remove = []
+        for checkpoint_id in self._store.get(thread_id, {}):
+            try:
+                version = int(checkpoint_id.split(":")[-1])
+            except ValueError:
+                continue
+            if version < min_version:
+                to_remove.append(checkpoint_id)
+        for checkpoint_id in to_remove:
+            self._store[thread_id].pop(checkpoint_id, None)

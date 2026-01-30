@@ -7,15 +7,23 @@
 
 from enum import Enum
 
-
 class ErrorCode(Enum):
     """에러 코드와 사용자 메시지 정의."""
 
-    VALIDATION = ("validation_error", "출력 형식 오류로 간단 요약을 제공합니다.")
+    # 폴백 메시지 정책
+    # - 동일 실패 유형은 동일 코드/메시지로 대응한다.
+    # - 사용자 메시지는 불안을 최소화하고 다음 행동을 안내한다.
+    # - 운영 지표/알림은 code 기준으로 집계한다.
+    VALIDATION = ("validation_error", "출력 형식 오류가 발생했습니다. 간단 요약으로 안내합니다.")
     TOOL = ("tool_error", "외부 도구 호출에 실패했습니다. 기본 안내만 제공합니다.")
     RETRIEVAL_EMPTY = ("retrieval_empty", "관련 정보를 찾지 못했습니다. 일반 설명을 제공합니다.")
     TIMEOUT = ("timeout", "처리가 지연되었습니다. 잠시 후 다시 시도해 주세요.")
     SAFEGUARD = ("safeguard_blocked", "요청을 처리할 수 없습니다. 다른 질문을 해주세요.")
+    ROUTING = ("routing_error", "경로 결정에 실패했습니다. 기본 안내로 전환합니다.")
+    MODEL = ("model_error", "모델 처리에 실패했습니다. 기본 안내로 전환합니다.")
+    CHECKPOINT = ("checkpoint_error", "대화 복구에 실패했습니다. 새 대화를 시작합니다.")
+    STREAM = ("stream_error", "스트리밍 처리에 실패했습니다. 결과를 요약해 제공합니다.")
+    CANCELLED = ("cancelled", "요청이 취소되었습니다. 필요하면 다시 요청해 주세요.")
     UNKNOWN = ("unknown_error", "처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.")
 
     @property

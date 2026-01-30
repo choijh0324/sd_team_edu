@@ -8,6 +8,7 @@
 from typing import Annotated, TypedDict
 
 from secondsession.core.chat.const import ErrorCode, SafeguardLabel
+from secondsession.core.chat.const.chat_history_item import ChatHistoryItem
 
 def add_history(existing: list[dict], incoming: list[dict] | None) -> list[dict]:
     """대화 내역을 누적한다.
@@ -31,14 +32,23 @@ def add_turn(existing: int, incoming: int | None) -> int:
 class ChatState(TypedDict):
     """대화 그래프 상태 스키마."""
 
-    history: Annotated[list[dict], add_history]
+    history: Annotated[list[ChatHistoryItem], add_history]
     summary: str | None
     turn_count: Annotated[int, add_turn]
     last_user_message: str
     last_assistant_message: str | None
+    user_message: str | None
+    thread_id: str | None
+    user_id: str | None
+    # 병렬 그래프 후보 결과(선택적으로 사용)
+    candidate_a: str | None
+    candidate_b: str | None
     # TODO:
-    # - error_code와 safeguard_label을 기준으로 폴백 메시지를 연결한다.
+    # - error_code/safeguard_label을 기준으로 폴백 메시지를 결정한다.
+    # - safeguard_label이 PASS가 아니면 SAFEGUARD 에러 코드를 우선한다.
+    # - error_code가 있으면 사용자 메시지 정책(ErrorCode.user_message)을 사용한다.
     safeguard_label: SafeguardLabel | None
     route: str | None
     error_code: ErrorCode | None
     trace_id: str | None
+    seq: int | None

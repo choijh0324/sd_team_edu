@@ -6,6 +6,7 @@
 """스트리밍 이벤트 큐 모듈."""
 
 import json
+import logging
 from typing import Any
 
 
@@ -32,9 +33,22 @@ class ChatStreamEventQueue:
             - rpush로 이벤트를 적재한다.
             - seq 단조 증가 규칙을 보장한다(워커 측에서 증가).
         """
-        _ = job_id
-        _ = json.dumps(event, ensure_ascii=False)
-        raise NotImplementedError("스트리밍 이벤트 적재 로직을 구현해야 합니다.")
+        logger = logging.getLogger(__name__)
+        required_keys = {"type", "trace_id", "seq"}
+        missing = required_keys - event.keys()
+        if missing:
+            raise ValueError(f"필수 필드 누락: {sorted(missing)}")
+        key = f"{self._key_prefix}:{job_id}"
+        try:
+            serialized = json.dumps(event, ensure_ascii=False)
+        except TypeError as exc:
+            logger.exception("이벤트 직렬화 실패: %s", exc)
+            raise
+        try:
+            self._redis.rpush(key, serialized)
+        except Exception as exc:  # pragma: no cover - 외부 의존성
+            logger.exception("이벤트 적재 실패: %s", exc)
+            raise
 
     def pop_event(self, job_id: str) -> dict | None:
         """이벤트를 큐에서 꺼낸다.
@@ -46,5 +60,29 @@ class ChatStreamEventQueue:
             - JSON을 dict로 역직렬화한다.
             - 역직렬화 실패 시 스킵/로깅 규칙을 정의한다.
         """
-        _ = job_id
-        raise NotImplementedError("스트리밍 이벤트 소비 로직을 구현해야 합니다.")
+        logger = logging.getLogger(__name__)
+        key = f"{self._key_prefix}:{job_id}"
+        raw = self._redis.lpop(key)
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            logger.exception("이벤트 역직렬화 실패: %s", exc)
+            return None
+        return data
+
+    def get_last_seq(self, job_id: str) -> int:
+        """현재 큐에 적재된 마지막 seq를 반환한다."""
+        logger = logging.getLogger(__name__)
+        key = f"{self._key_prefix}:{job_id}"
+        raw = self._redis.lindex(key, -1)
+        if not raw:
+            return 0
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            logger.exception("마지막 이벤트 역직렬화 실패: %s", exc)
+            return 0
+        seq = data.get("seq")
+        return int(seq) if isinstance(seq, int | float | str) else 0

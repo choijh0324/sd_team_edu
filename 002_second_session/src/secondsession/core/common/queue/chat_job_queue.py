@@ -6,6 +6,7 @@
 """대화 작업 큐 모듈."""
 
 import json
+import logging
 from typing import Any
 
 
@@ -31,8 +32,21 @@ class ChatJobQueue:
             - rpush로 큐에 적재한다.
             - 직렬화 실패/Redis 오류 정책을 정의한다(로깅/예외).
         """
-        _ = json.dumps(payload, ensure_ascii=False)
-        raise NotImplementedError("대화 작업 큐 적재 로직을 구현해야 합니다.")
+        logger = logging.getLogger(__name__)
+        required_keys = {"job_id", "trace_id", "thread_id", "query"}
+        missing = required_keys - payload.keys()
+        if missing:
+            raise ValueError(f"필수 필드 누락: {sorted(missing)}")
+        try:
+            serialized = json.dumps(payload, ensure_ascii=False)
+        except TypeError as exc:
+            logger.exception("작업 직렬화 실패: %s", exc)
+            raise
+        try:
+            self._redis.rpush(self._key, serialized)
+        except Exception as exc:  # pragma: no cover - 외부 의존성
+            logger.exception("작업 큐 적재 실패: %s", exc)
+            raise
 
     def dequeue(self) -> dict | None:
         """작업을 큐에서 꺼낸다.
@@ -44,4 +58,17 @@ class ChatJobQueue:
             - 역직렬화 실패 시 스킵/로깅 규칙을 정의한다.
             - 필수 필드가 없으면 에러 처리 정책을 정의한다.
         """
-        raise NotImplementedError("대화 작업 큐 소비 로직을 구현해야 합니다.")
+        logger = logging.getLogger(__name__)
+        raw = self._redis.lpop(self._key)
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            logger.exception("작업 역직렬화 실패: %s", exc)
+            return None
+        required_keys = {"job_id", "trace_id", "thread_id", "query"}
+        if not required_keys.issubset(data.keys()):
+            logger.error("작업 필수 필드 누락: %s", data)
+            return None
+        return data

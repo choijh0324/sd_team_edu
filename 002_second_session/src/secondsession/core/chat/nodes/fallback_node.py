@@ -5,6 +5,10 @@
 
 """폴백 응답 노드 모듈."""
 
+import logging
+
+from secondsession.core.chat.const.error_code import ErrorCode
+from secondsession.core.chat.const.safeguard_label import SafeguardLabel
 from secondsession.core.chat.state.chat_state import ChatState
 
 
@@ -18,6 +22,37 @@ def fallback_node(state: ChatState) -> dict:
         - 사용자 메시지 정책(톤/완화)을 enum 테이블로 관리한다.
         - ErrorCode/SafeguardLabel(Enum)을 기준으로 정책을 분기한다.
     """
-    _ = state.get("error_code")
-    _ = state.get("safeguard_label")
-    raise NotImplementedError("폴백 응답 로직을 구현해야 합니다.")
+    logger = logging.getLogger(__name__)
+    error_code = state.get("error_code")
+    safeguard_label = state.get("safeguard_label")
+
+    resolved_error_code = error_code
+    if safeguard_label and safeguard_label != SafeguardLabel.PASS:
+        resolved_error_code = ErrorCode.SAFEGUARD
+
+    message = _resolve_fallback_message(
+        error_code=resolved_error_code,
+        safeguard_label=safeguard_label,
+    )
+    logger.warning(
+        "폴백 응답 생성: error_code=%s, safeguard_label=%s",
+        resolved_error_code.code if resolved_error_code else None,
+        safeguard_label.value if safeguard_label else None,
+    )
+
+    return {
+        "last_assistant_message": message,
+        "error_code": resolved_error_code or ErrorCode.UNKNOWN,
+    }
+
+
+def _resolve_fallback_message(
+    error_code: ErrorCode | None,
+    safeguard_label: SafeguardLabel | None,
+) -> str:
+    """폴백 메시지를 결정한다."""
+    if safeguard_label and safeguard_label != SafeguardLabel.PASS:
+        return ErrorCode.SAFEGUARD.user_message
+    if error_code:
+        return error_code.user_message
+    return ErrorCode.UNKNOWN.user_message

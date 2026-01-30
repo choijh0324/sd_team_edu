@@ -7,13 +7,14 @@
 
 from pydantic import BaseModel, Field
 
+from secondsession.api.chat.const import MetadataEventType
 from secondsession.core.chat.const import ErrorCode, SafeguardLabel
 
 
 class ChatStreamMetadata(BaseModel):
     """메타데이터 스트리밍 페이로드."""
 
-    event: str = Field(..., description="메타데이터 이벤트 이름(node_start 등)")
+    event: MetadataEventType = Field(..., description="메타데이터 이벤트 이름(node_start 등)")
     message: str = Field(..., description="사용자/운영자에게 전달할 메시지")
     timestamp: str | None = Field(default=None, description="이벤트 생성 시각(ISO8601)")
     node: str | None = Field(default=None, description="관련 노드 이름")
@@ -23,5 +24,4 @@ class ChatStreamMetadata(BaseModel):
 
 
 # TODO:
-# - event 값을 Enum으로 고정한다.
 # - timestamp 기본 생성 규칙을 정의한다.
