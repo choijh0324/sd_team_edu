@@ -57,9 +57,9 @@ class ParallelChatGraph:
         if not thread_id:
             return None
         configurable: dict[str, str] = {"thread_id": str(thread_id)}
-        checkpoint_id = state.get("checkpoint_id")
-        if checkpoint_id:
-            configurable["checkpoint_id"] = str(checkpoint_id)
+        checkpoint_ref = state.get("checkpoint_ref")
+        if checkpoint_ref:
+            configurable["checkpoint_id"] = str(checkpoint_ref)
         return {"configurable": configurable}
 
     def _build_graph(self) -> object:

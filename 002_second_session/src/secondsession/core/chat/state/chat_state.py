@@ -79,4 +79,4 @@ class ChatState(TypedDict):
     thread_id: str | None
     session_id: str | None
     history_persisted: bool | None
-    checkpoint_id: str | None
+    checkpoint_ref: str | None

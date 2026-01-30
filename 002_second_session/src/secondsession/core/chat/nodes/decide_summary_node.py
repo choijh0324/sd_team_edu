@@ -5,6 +5,8 @@
 
 """요약 여부 결정 노드 모듈."""
 
+import logging
+
 from secondsession.core.chat.state.chat_state import ChatState
 
 
@@ -21,10 +23,14 @@ class DecideSummaryNode:
             ChatState: 요약 라우팅 정보가 반영된 상태.
         """
         # error_code가 있으면 요약을 건너뛴다.
+        logger = logging.getLogger(__name__)
         if state.get("error_code") is not None:
+            logger.info("decide_summary error_code 감지 -> end")
             return {"route": "end"}
 
         turn_count = state.get("turn_count", 0)
         if turn_count > 5:
+            logger.info("decide_summary summarize turn_count=%s", turn_count)
             return {"route": "summarize"}
+        logger.info("decide_summary end turn_count=%s", turn_count)
         return {"route": "end"}

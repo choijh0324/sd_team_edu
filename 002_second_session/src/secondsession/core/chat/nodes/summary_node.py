@@ -5,6 +5,8 @@
 
 """대화 요약 노드 모듈."""
 
+import logging
+
 from langchain_openai import ChatOpenAI
 
 from secondsession.core.chat.const import ErrorCode
@@ -34,7 +36,9 @@ class SummaryNode:
         Returns:
             ChatState: 요약 결과가 반영된 상태.
         """
+        logger = logging.getLogger(__name__)
         chat_history = self._render_history(state.get("history", []))
+        logger.info("summary 시작 items=%s", len(state.get("history", [])))
         llm = self._get_llm()
         prompt = SUMMARY_PROMPT.format(chat_history=chat_history)
         try:
@@ -47,6 +51,7 @@ class SummaryNode:
         summary = str(getattr(result, "content", result)).strip()
         if not summary:
             return {"error_code": ErrorCode.VALIDATION}
+        logger.info("summary 완료 length=%s", len(summary))
         return {"summary": summary}
 
     def _get_llm(self) -> ChatOpenAI:

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 import re
 from typing import Any
 
@@ -56,11 +57,14 @@ class ChatWorker(WorkerBase):
             - 그래프 실행 및 token/metadata/error/done 이벤트 적재
             - 취소 플래그 확인 및 error → done 순서 보장
         """
+        logger = logging.getLogger(__name__)
         job_id = str(job.get("job_id"))
         trace_id = str(job.get("trace_id"))
         thread_id = str(job.get("thread_id"))
         session_id = job.get("session_id")
         seq = 1
+
+        logger.info("작업 시작 job_id=%s trace_id=%s", job_id, trace_id)
 
         if self._is_cancelled(job_id):
             self._set_status(job_id, "cancelled")
@@ -78,6 +82,7 @@ class ChatWorker(WorkerBase):
                 job_id,
                 self._build_done_event(trace_id=trace_id, seq=seq),
             )
+            logger.info("작업 취소됨 job_id=%s", job_id)
             return
 
         self._set_status(job_id, "running")
@@ -99,7 +104,7 @@ class ChatWorker(WorkerBase):
             "thread_id": thread_id,
             "session_id": session_id,
             "history_persisted": None,
-            "checkpoint_id": job.get("checkpoint_id"),
+            "checkpoint_ref": job.get("checkpoint_id"),
         }
 
         self._event_queue.push_event(
@@ -128,6 +133,7 @@ class ChatWorker(WorkerBase):
                     ),
                 )
                 seq += 1
+                logger.info("작업 취소됨 job_id=%s", job_id)
                 return
             route = result.get("route")
             safeguard_label = result.get("safeguard_label")
@@ -181,8 +187,10 @@ class ChatWorker(WorkerBase):
             )
             seq += 1
             self._set_status(job_id, "done")
+            logger.info("작업 완료 job_id=%s", job_id)
         except Exception as exc:  # pragma: no cover - 외부 의존성
             self._set_status(job_id, "failed")
+            logger.exception("작업 실패 job_id=%s error=%s", job_id, exc)
             self._event_queue.push_event(
                 job_id,
                 self._build_error_event(

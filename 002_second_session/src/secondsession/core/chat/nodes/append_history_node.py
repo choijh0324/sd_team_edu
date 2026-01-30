@@ -6,6 +6,7 @@
 """대화 내역 업데이트 노드 모듈."""
 
 from datetime import datetime, timezone
+import logging
 
 from secondsession.core.chat.const.chat_history_item import ChatHistoryItem
 from secondsession.core.chat.state.chat_state import ChatState
@@ -26,6 +27,7 @@ class AppendHistoryNode:
         # history에 사용자/어시스턴트 메시지를 추가한다.
         # reducer가 누적하므로 history는 신규 항목만 반환한다.
         # reducer가 누적하므로 turn_count는 증가분만 반환한다.
+        logger = logging.getLogger(__name__)
         user_message = state.get("last_user_message")
         assistant_message = state.get("last_assistant_message")
 
@@ -50,6 +52,8 @@ class AppendHistoryNode:
             )
 
         if not new_items:
+            logger.info("append_history 스킵")
             return {"history": [], "turn_count": 0}
 
+        logger.info("append_history 추가 items=%s", len(new_items))
         return {"history": new_items, "turn_count": 1}

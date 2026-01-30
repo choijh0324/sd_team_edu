@@ -5,6 +5,8 @@
 
 """안전 분류 노드 모듈."""
 
+import logging
+
 from langchain_openai import ChatOpenAI
 
 from secondsession.core.chat.const import ErrorCode, SafeguardLabel
@@ -34,7 +36,9 @@ class SafeguardNode:
         Returns:
             ChatState: 안전 라벨이 반영된 상태.
         """
+        logger = logging.getLogger(__name__)
         user_message = state.get("last_user_message", "")
+        logger.info("safeguard 시작")
         llm = self._get_llm()
         prompt = SAFEGUARD_PROMPT.format(user_input=user_message)
         try:
@@ -51,6 +55,7 @@ class SafeguardNode:
             }
 
         label = self._parse_label(str(getattr(result, "content", result)))
+        logger.info("safeguard 완료 label=%s", label.value)
         response: ChatState = {"safeguard_label": label}
         if label != SafeguardLabel.PASS:
             response["error_code"] = ErrorCode.SAFEGUARD

@@ -5,6 +5,8 @@
 
 """대화 응답 생성 노드 모듈."""
 
+import logging
+
 from langchain_openai import ChatOpenAI
 
 from secondsession.core.chat.const import ErrorCode
@@ -34,7 +36,9 @@ class AnswerNode:
         Returns:
             ChatState: 답변 결과가 반영된 상태.
         """
+        logger = logging.getLogger(__name__)
         user_message = state.get("last_user_message", "")
+        logger.info("answer 시작")
         llm = self._get_llm()
         prompt = ANSWER_PROMPT.format(user_message=user_message)
         try:
@@ -47,6 +51,7 @@ class AnswerNode:
         content = str(getattr(result, "content", result)).strip()
         if not content:
             return {"error_code": ErrorCode.VALIDATION}
+        logger.info("answer 완료 length=%s", len(content))
         return {"last_assistant_message": content}
 
     def _get_llm(self) -> ChatOpenAI:

@@ -7,7 +7,7 @@
 
 from fastapi import FastAPI
 
-from secondsession.core.common.checkpointer import build_redis_checkpointer
+from secondsession.core.common.checkpointer import InMemoryCheckpointer
 from secondsession.core.common.queue import ChatJobQueue, ChatStreamEventQueue
 
 from secondsession.api.chat.router.chat_router import ChatRouter
@@ -45,7 +45,7 @@ def create_app() -> FastAPI:
     redis_client = _build_redis_client(config.redis_url)
     job_queue = ChatJobQueue(redis_client)
     event_queue = ChatStreamEventQueue(redis_client)
-    checkpointer = build_redis_checkpointer(config.redis_url)
+    checkpointer = InMemoryCheckpointer()
     llm_client = LlmClient(config)
     graph = ChatGraph(checkpointer=checkpointer, llm_client=llm_client)
     service = ChatService(

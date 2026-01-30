@@ -5,6 +5,8 @@
 
 """폴백 응답 노드 모듈."""
 
+import logging
+
 from secondsession.core.chat.const import ErrorCode, SafeguardLabel
 from secondsession.core.chat.state.chat_state import ChatState
 
@@ -21,6 +23,7 @@ class FallbackNode:
         Returns:
             ChatState: 폴백 응답이 반영된 상태.
         """
+        logger = logging.getLogger(__name__)
         error_code = self._normalize_error_code(state.get("error_code"))
         safeguard_label = self._normalize_label(state.get("safeguard_label"))
 
@@ -28,6 +31,11 @@ class FallbackNode:
             error_code = ErrorCode.SAFEGUARD
 
         message = self._build_message(error_code, safeguard_label)
+        logger.info(
+            "fallback 실행 error_code=%s safeguard_label=%s",
+            error_code.code if error_code else None,
+            safeguard_label.value if safeguard_label else None,
+        )
         response: ChatState = {
             "last_assistant_message": message,
         }
