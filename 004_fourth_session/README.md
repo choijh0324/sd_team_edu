@@ -1,7 +1,6 @@
-# fourthSession
+# 네번째 세션
 
-이 프로젝트는 **주택 데이터셋(housing.csv)**을 기반으로 **Agent/Tool/MCP/LangGraph** 구조를 학습하기 위한 교육용 예제입니다.  
-`Plan → Validate → Execute → Merge → Feedback` 흐름을 실제 동작 구조로 제공하며, 학습자가 단계별로 확장/개선할 수 있도록 설계했습니다.
+이 프로젝트는 **주택 데이터셋(housing.csv)**을 기반으로 **Agent/Tool/MCP/LangGraph** 구조를 학습하기 위한 프로젝트입니다.  
 
 ## 프로젝트 목표
 
