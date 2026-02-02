@@ -7,10 +7,12 @@
 
 from fastapi import FastAPI
 
-from thirdsession.api.chat.router.rag_chat_router import create_rag_chat_router
-from thirdsession.api.chat.service.rag_chat_service import RagChatService
-from thirdsession.core.chat.usecases.rag_chat_usecase import RagChatUseCase
+from thirdsession.api.rag.service.rag_job_service import RagJobService
+from thirdsession.api.rag.router import register_rag_routes
+from thirdsession.api.rag.service.rag_service import RagService
+from thirdsession.core.rag.graphs.rag_pipeline_graph import RagPipelineGraph
 from thirdsession.core.common.app_config import AppConfig
+from thirdsession.core.common.llm_client import LlmClient
 
 
 def create_app() -> FastAPI:
@@ -21,8 +23,14 @@ def create_app() -> FastAPI:
     """
     app = FastAPI(title="thirdsession API")
 
-    # TODO: 환경 설정/의존성 주입 방식을 확장한다.
-    raise NotImplementedError
+    config = AppConfig.from_env()
+    llm_client = LlmClient(config)
+    graph = RagPipelineGraph(llm_client=llm_client)
+    rag_service = RagService(graph)
+    job_service = RagJobService()
+    app.state.rag_service = rag_service
+    app.state.job_service = job_service
+    register_rag_routes(app)
 
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:

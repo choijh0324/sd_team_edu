@@ -1,3 +1,8 @@
+# WSL Specific Files
+*.Zone.Identifier
+
+# TMUX Specific Files
+tmux*
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

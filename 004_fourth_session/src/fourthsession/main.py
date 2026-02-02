@@ -1,7 +1,7 @@
 # 목적: FastAPI 애플리케이션 진입점을 제공한다.
-# 설명: uvicorn에서 \"fourthSession.main:app\" 형태로 실행할 수 있는 앱 객체를 정의한다.
+# 설명: uvicorn에서 "fourthsession.main:app" 형태로 실행할 수 있는 앱 객체를 정의한다.
 # 디자인 패턴: 팩토리 메서드 패턴(애플리케이션 생성 책임 분리)
-# 참조: fourthSession/api, fourthSession/core
+# 참조: fourthsession/api, fourthsession/core
 
 """FastAPI 애플리케이션 진입점 모듈."""
 
@@ -21,7 +21,11 @@ def create_app() -> FastAPI:
         """간단한 헬스 체크 엔드포인트."""
         return {"status": "ok"}
 
-    return app
+    # TODO: 아래 흐름을 구현한다.
+    # 1) HousingAgentService, HousingJobService 생성
+    # 2) app.state에 서비스 저장
+    # 3) register_routes(app) 호출로 라우터 등록
+    raise NotImplementedError("TODO: 애플리케이션 구성 구현")
 
 
 app = create_app()
@@ -30,4 +34,4 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("fourthSession.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("fourthsession.main:app", host="0.0.0.0", port=8000, reload=True)
