@@ -7,27 +7,58 @@
 
 from __future__ import annotations
 
+import time
+from abc import ABC, abstractmethod
 from typing import Any
 
 
-class WorkerBase:
+class WorkerBase(ABC):
     """동기 워커 베이스 클래스."""
 
+    def __init__(self, poll_interval: float = 0.1) -> None:
+        """워커를 초기화한다.
+
+        Args:
+            poll_interval: 작업 폴링 간격(초).
+        """
+        self._poll_interval = poll_interval
+        self._stop_requested = False
+
+    def stop(self) -> None:
+        """워커 종료를 요청한다."""
+        self._stop_requested = True
+
     def run_forever(self) -> None:
-        """작업 루프를 실행한다."""
-        # TODO: 루프 생명주기, 예외 처리, 종료 조건을 정의한다.
-        raise NotImplementedError("워커 실행 루프를 구현해야 합니다.")
+        """작업 루프를 실행한다.
 
+        구현 내용:
+            - stop 플래그 기반 종료
+            - 큐가 비면 poll_interval 만큼 대기
+            - 예외 발생 시 간단 백오프 후 루프 지속
+        """
+        while not self._stop_requested:
+            try:
+                job = self.fetch_job()
+                if job is None:
+                    time.sleep(self._poll_interval)
+                    continue
+                self.handle_job(job)
+            except Exception:
+                time.sleep(min(self._poll_interval * 2, 1.0))
+
+    @abstractmethod
     def fetch_job(self) -> dict[str, Any] | None:
-        """작업을 가져온다."""
-        # TODO: 큐/스토리지에서 작업을 가져오는 로직을 정의한다.
-        raise NotImplementedError("작업 조회 로직을 구현해야 합니다.")
+        """작업을 가져온다.
 
+        Returns:
+            dict[str, Any] | None: 작업 페이로드 또는 None.
+        """
+
+    @abstractmethod
     def handle_job(self, payload: dict[str, Any]) -> None:
         """작업을 처리한다.
 
         Args:
             payload: 작업 페이로드.
         """
-        # TODO: 작업 처리 로직과 체크포인트 연계를 정의한다.
-        raise NotImplementedError("작업 처리 로직을 구현해야 합니다.")
+        _ = payload

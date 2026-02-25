@@ -20,6 +20,10 @@ class AppConfig:
     redis_url: str | None
     llm_model: str
     llm_temperature: float
+    pg_dsn: str | None
+    rag_table: str
+    embedding_model: str
+    rag_top_k: int
 
     @classmethod
     def from_env(cls) -> "AppConfig":
@@ -62,10 +66,29 @@ class AppConfig:
                 raise ValueError("LLM_TEMPERATURE 환경 변수가 필요합니다.")
             return float(value)
 
+        def parse_int(value: str | None, default: int) -> int:
+            """문자열 값을 int로 변환하고 기본값을 보정한다.
+
+            Args:
+                value: 변환 대상 문자열.
+                default: 값이 없을 때 사용할 기본값.
+
+            Returns:
+                int: 변환된 값.
+            """
+            if value is None or value.strip() == "":
+                return default
+            parsed = int(value)
+            return parsed if parsed > 0 else default
+
         return cls(
             openai_api_key=os.getenv("OPENAI_API_KEY"),
             google_api_key=require_env("GOOGLE_API_KEY"),
             redis_url=os.getenv("REDIS_URL"),
             llm_model=require_env("LLM_MODEL"),
             llm_temperature=parse_float(os.getenv("LLM_TEMPERATURE")),
+            pg_dsn=os.getenv("PG_DSN"),
+            rag_table=os.getenv("RAG_TABLE", "rag_documents"),
+            embedding_model=os.getenv("EMBEDDING_MODEL", "gemini-embedding-001"),
+            rag_top_k=parse_int(os.getenv("RAG_TOP_K"), 5),
         )

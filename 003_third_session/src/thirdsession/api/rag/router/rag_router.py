@@ -6,6 +6,7 @@
 """rag 라우터 모듈."""
 
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 
 from thirdsession.api.rag.model.request import RagRequest
 from thirdsession.api.rag.model.response import RagResponse
@@ -24,7 +25,7 @@ class RagRouter:
         self._service = service
         self.router = APIRouter()
         self.router.add_api_route(
-            "",
+            "/",
             self.rag,
             methods=["POST"],
             response_model=RagResponse,
@@ -45,10 +46,9 @@ class RagRouter:
             RagResponse: 응답 모델.
         """
         # TODO: 인증/권한 확인, 요청 유효성 검사를 강화한다.
-        _ = request
-        raise NotImplementedError("rag 요청 처리 로직을 구현해야 합니다.")
+        return self._service.handle(request)
 
-    def rag_stream(self, request: RagRequest) -> None:
+    def rag_stream(self, request: RagRequest) -> StreamingResponse:
         """rag 스트리밍 요청을 처리한다.
 
         Args:
@@ -56,5 +56,8 @@ class RagRouter:
         """
         # TODO: SSE 스트리밍 응답을 구성한다.
         # - 답변 SSE → 근거 SSE → done 순서를 보장한다.
-        _ = request
-        raise NotImplementedError("rag 스트리밍 로직을 구현해야 합니다.")
+        return StreamingResponse(
+            self._service.stream(request),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache"},
+        )

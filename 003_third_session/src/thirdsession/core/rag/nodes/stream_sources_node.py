@@ -10,6 +10,8 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
+from thirdsession.core.common.sse_utils import to_sse_line
+
 # TODO: 스트리밍 이벤트/메타데이터/소스 모델을 연결한다.
 
 
@@ -34,34 +36,90 @@ class StreamSourcesNode:
         Yields:
             str: SSE 데이터 라인.
         """
-        # TODO: sources를 RagSourceItem으로 정규화한다.
-        # TODO: sources 이벤트(타입/메타데이터/seq)를 생성한다.
-        _ = sources
+        normalized_sources = self._normalize_sources(sources)
         _ = trace_id
-        _ = seq_start
         _ = node
-        raise NotImplementedError("근거 문서 스트리밍 로직을 구현해야 합니다.")
+        _ = seq_start
+
+        yield self._to_sse_line(
+            {
+                "type": "references",
+                "status": "end",
+                "items": normalized_sources,
+            }
+        )
 
     def _normalize_sources(self, sources: list[Any]) -> list[Any]:
         """근거 문서 목록을 RagSourceItem으로 정규화한다."""
-        # TODO: DocumentModel/dict/기타 타입을 RagSourceItem으로 변환한다.
-        _ = sources
-        raise NotImplementedError("근거 문서 정규화 로직을 구현해야 합니다.")
+        normalized: list[dict[str, Any]] = []
+        for index, source in enumerate(sources, start=1):
+            if isinstance(source, dict):
+                normalized.append(self._from_dict(source, index))
+                continue
+            if hasattr(source, "page_content") or hasattr(source, "metadata"):
+                normalized.append(self._from_document(source, index))
+                continue
+            normalized.append(self._from_unknown(source, index))
+        return normalized
 
-    def _from_dict(self, payload: dict[str, Any], index: int) -> Any:
+    def _from_dict(self, payload: dict[str, Any], index: int) -> dict[str, Any]:
         """dict 기반 소스를 RagSourceItem으로 변환한다."""
-        _ = payload
-        _ = index
-        raise NotImplementedError("dict 기반 소스 변환 로직을 구현해야 합니다.")
+        metadata = payload.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
 
-    def _from_unknown(self, source: Any, index: int) -> Any:
+        source_id = payload.get("source_id") or payload.get("id") or metadata.get("source_id") or f"source-{index}"
+        title = payload.get("title") or metadata.get("title")
+        snippet = payload.get("snippet") or payload.get("content") or payload.get("page_content")
+        score = payload.get("score")
+        return {
+            "source_id": str(source_id),
+            "title": title,
+            "snippet": str(snippet)[:300] if snippet is not None else None,
+            "score": self._to_float(score),
+            "metadata": metadata,
+        }
+
+    def _from_unknown(self, source: Any, index: int) -> dict[str, Any]:
         """알 수 없는 타입을 기본 구조로 변환한다."""
-        _ = source
-        _ = index
-        raise NotImplementedError("알 수 없는 타입 변환 로직을 구현해야 합니다.")
+        text = str(source)
+        return {
+            "source_id": f"source-{index}",
+            "title": None,
+            "snippet": text[:300],
+            "score": 0.0,
+            "metadata": {},
+        }
 
-    def _from_document(self, document: Any, index: int) -> Any:
+    def _from_document(self, document: Any, index: int) -> dict[str, Any]:
         """DocumentModel을 RagSourceItem으로 변환한다."""
-        _ = document
-        _ = index
-        raise NotImplementedError("DocumentModel 변환 로직을 구현해야 합니다.")
+        metadata = getattr(document, "metadata", None)
+        if not isinstance(metadata, dict):
+            metadata = {}
+
+        page_content = getattr(document, "page_content", None)
+        source_id = metadata.get("source_id") or metadata.get("id") or f"source-{index}"
+        title = metadata.get("title")
+        score = metadata.get("score")
+        return {
+            "source_id": str(source_id),
+            "title": title,
+            "snippet": str(page_content)[:300] if page_content is not None else None,
+            "score": self._to_float(score),
+            "metadata": metadata,
+        }
+
+    def _to_float(self, value: Any) -> float:
+        """점수 값을 float로 변환한다."""
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                return 0.0
+        return 0.0
+
+    def _to_sse_line(self, payload: dict[str, Any]) -> str:
+        """SSE 라인 문자열로 직렬화한다."""
+        return to_sse_line(payload)

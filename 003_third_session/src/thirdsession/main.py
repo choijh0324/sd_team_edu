@@ -5,6 +5,8 @@
 
 """FastAPI 애플리케이션 진입점 모듈."""
 
+import logging
+
 from fastapi import FastAPI
 
 from thirdsession.api.rag.service.rag_job_service import RagJobService
@@ -13,6 +15,10 @@ from thirdsession.api.rag.service.rag_service import RagService
 from thirdsession.core.rag.graphs.rag_pipeline_graph import RagPipelineGraph
 from thirdsession.core.common.app_config import AppConfig
 from thirdsession.core.common.llm_client import LlmClient
+from thirdsession.core.rag.retrieval import PgVectorRetriever
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -25,9 +31,10 @@ def create_app() -> FastAPI:
 
     config = AppConfig.from_env()
     llm_client = LlmClient(config)
-    graph = RagPipelineGraph(llm_client=llm_client)
+    retriever = _build_retriever(config)
+    graph = RagPipelineGraph(llm_client=llm_client, retriever=retriever, store=retriever)
     rag_service = RagService(graph)
-    job_service = RagJobService()
+    job_service = RagJobService(graph=graph, llm_client=llm_client)
     app.state.rag_service = rag_service
     app.state.job_service = job_service
     register_rag_routes(app)
@@ -38,6 +45,24 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     return app
+
+
+def _build_retriever(config: AppConfig) -> PgVectorRetriever | None:
+    """환경 설정을 기반으로 pgvector 검색기를 생성한다."""
+    if config.pg_dsn is None or config.pg_dsn.strip() == "":
+        LOGGER.warning("PG_DSN이 없어 RAG 검색기를 비활성화합니다.")
+        return None
+    try:
+        return PgVectorRetriever(
+            dsn=config.pg_dsn,
+            table_name=config.rag_table,
+            google_api_key=config.google_api_key,
+            embedding_model=config.embedding_model,
+            default_k=config.rag_top_k,
+        )
+    except Exception:
+        LOGGER.exception("pgvector 검색기 생성에 실패해 검색 없이 동작합니다.")
+        return None
 
 
 app = create_app()
