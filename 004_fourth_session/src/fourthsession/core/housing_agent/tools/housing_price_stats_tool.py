@@ -7,8 +7,13 @@
 
 from __future__ import annotations
 
+import logging
+
 from fourthsession.core.common.tools.base_tool import BaseTool
 from fourthsession.core.repository.sqlite.housing_repository import HousingRepository
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class HousingPriceStatsTool(BaseTool):
@@ -89,4 +94,12 @@ class HousingPriceStatsTool(BaseTool):
             dict: 실행 결과.
         """
         filters = dict(payload or {})
-        return self._repository.get_price_stats(filters)
+        LOGGER.info("[tool][housing_price_stats][execute] filters=%s", filters)
+        result = self._repository.get_price_stats(filters)
+        LOGGER.info(
+            "[tool][housing_price_stats][result] count=%s min=%s max=%s",
+            result.get("count"),
+            result.get("min"),
+            result.get("max"),
+        )
+        return result

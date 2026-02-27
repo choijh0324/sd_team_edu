@@ -14,6 +14,7 @@ from fourthsession.api.housing_agent.service.housing_agent_service import (
     HousingAgentService,
 )
 from fourthsession.api.housing_agent.service.housing_job_service import HousingJobService
+from fourthsession.core.common.logging_config import configure_logging
 from fourthsession.core.common.queue.inmemory_job_store import InMemoryJobStore
 from fourthsession.core.common.queue.job_queue import RedisJobQueue
 from fourthsession.core.common.queue.stream_event_queue import RedisStreamEventQueue
@@ -26,6 +27,7 @@ def create_app() -> FastAPI:
     Returns:
         FastAPI: 구성된 애플리케이션 인스턴스.
     """
+    configure_logging(service_name="fourthsession-api")
     app = FastAPI(title="fourthSession API")
 
     @app.get("/health", tags=["health"])

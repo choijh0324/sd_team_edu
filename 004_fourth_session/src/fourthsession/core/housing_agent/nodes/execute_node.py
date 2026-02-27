@@ -94,7 +94,21 @@ class ExecuteNode:
                 continue
 
             try:
+                LOGGER.info(
+                    "[agent][tool_call][start] trace_id=%s step_id=%s tool=%s input_keys=%s",
+                    state.trace_id,
+                    step_id,
+                    tool_name,
+                    sorted(payload.keys()),
+                )
                 result = tool.execute(payload)
+                LOGGER.info(
+                    "[agent][tool_call][end] trace_id=%s step_id=%s tool=%s result_keys=%s",
+                    state.trace_id,
+                    step_id,
+                    tool_name,
+                    sorted(result.keys()) if isinstance(result, dict) else [],
+                )
                 tool_results.append(
                     {
                         "step_id": step_id,

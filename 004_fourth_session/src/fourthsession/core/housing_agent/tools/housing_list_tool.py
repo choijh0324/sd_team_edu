@@ -7,9 +7,14 @@
 
 from __future__ import annotations
 
+import logging
+
 from fourthsession.core.housing_agent.const.agent_constants import HousingAgentConstants
 from fourthsession.core.common.tools.base_tool import BaseTool
 from fourthsession.core.repository.sqlite.housing_repository import HousingRepository
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class HousingListTool(BaseTool):
@@ -100,5 +105,7 @@ class HousingListTool(BaseTool):
         else:
             filters["limit"] = max(1, int(limit))
 
+        LOGGER.info("[tool][housing_list][execute] filters=%s", filters)
         houses = self._repository.list_houses(filters)
+        LOGGER.info("[tool][housing_list][result] count=%s", len(houses))
         return {"count": len(houses), "items": houses}

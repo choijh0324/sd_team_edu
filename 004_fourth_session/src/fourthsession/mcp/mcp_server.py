@@ -7,12 +7,17 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Callable
 
 from mcp.server.fastmcp import FastMCP
 
+from fourthsession.core.common.logging_config import configure_logging
 from fourthsession.mcp.tool_registry import HousingToolRegistry
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class HousingMcpServer:
@@ -52,6 +57,7 @@ class HousingMcpServer:
 
     def run(self) -> None:
         """MCP 서버를 실행한다."""
+        configure_logging(service_name="fourthsession-mcp")
         mcp = self.build()
         transport = os.getenv("MCP_TRANSPORT", "stdio")
         mcp.run(transport=transport)
@@ -61,9 +67,25 @@ class HousingMcpServer:
         tool = self._registry.get_tool(tool_name)
 
         def _handler(payload: dict) -> dict:
+            LOGGER.info(
+                "[mcp][tool_call][start] tool=%s payload_keys=%s",
+                tool_name,
+                sorted(payload.keys()) if isinstance(payload, dict) else [],
+            )
             if tool is None:
+                LOGGER.warning("[mcp][tool_call][missing] tool=%s", tool_name)
                 return {"error": f"등록되지 않은 도구입니다: {tool_name}"}
-            return tool.execute(payload)
+            try:
+                result = tool.execute(payload)
+                LOGGER.info(
+                    "[mcp][tool_call][end] tool=%s result_keys=%s",
+                    tool_name,
+                    sorted(result.keys()) if isinstance(result, dict) else [],
+                )
+                return result
+            except Exception:
+                LOGGER.exception("[mcp][tool_call][error] tool=%s", tool_name)
+                raise
 
         _handler.__name__ = tool_name
         _handler.__doc__ = (
