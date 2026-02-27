@@ -7,6 +7,9 @@
 
 from fastapi import APIRouter
 
+from fourthsession.api.housing_agent.const.api_constants import HousingApiConstants
+from fourthsession.api.housing_agent.model.request import HousingAgentRequest
+from fourthsession.api.housing_agent.model.response import HousingAgentResponse
 from fourthsession.api.housing_agent.service.housing_agent_service import (
     HousingAgentService,
 )
@@ -29,8 +32,23 @@ class HousingAgentRouter:
         Returns:
             APIRouter: 구성된 라우터.
         """
-        # TODO: 아래 항목을 연결해 라우터를 구성한다.
-        # - HousingApiConstants 값 적용
-        # - POST /housing/agent 엔드포인트 등록
-        # - HousingAgentRequest/Response 사용
-        raise NotImplementedError("TODO: 라우터 구성 구현")
+        constants = HousingApiConstants()
+        router = APIRouter(prefix=constants.api_prefix, tags=[constants.tag])
+        router.add_api_route(
+            path=constants.agent_path,
+            endpoint=self.agent,
+            methods=["POST"],
+            response_model=HousingAgentResponse,
+        )
+        return router
+
+    def agent(self, request: HousingAgentRequest) -> HousingAgentResponse:
+        """주택 에이전트 요청을 처리한다.
+
+        Args:
+            request (HousingAgentRequest): 주택 에이전트 요청 모델.
+
+        Returns:
+            HousingAgentResponse: 주택 에이전트 응답 모델.
+        """
+        return self._service.handle(request)

@@ -5,6 +5,11 @@
 
 """인메모리 작업 저장소 모듈."""
 
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from threading import Lock
+
 from fourthsession.core.common.queue.job_record import JobRecord
 
 
@@ -13,8 +18,8 @@ class InMemoryJobStore:
 
     def __init__(self) -> None:
         """저장소를 초기화한다."""
-        # TODO: 내부 저장 구조(딕셔너리, Lock)를 준비한다.
-        raise NotImplementedError("TODO: 저장소 초기화 구현")
+        self._records: dict[str, JobRecord] = {}
+        self._lock = Lock()
 
     def create(self, job_id: str, payload: dict) -> JobRecord:
         """작업 레코드를 생성한다.
@@ -26,8 +31,17 @@ class InMemoryJobStore:
         Returns:
             JobRecord: 생성된 레코드.
         """
-        # TODO: JobRecord를 생성하고 저장한다.
-        raise NotImplementedError("TODO: 작업 생성 구현")
+        timestamp = datetime.now(UTC).isoformat()
+        record = JobRecord(
+            job_id=job_id,
+            status="QUEUED",
+            payload=dict(payload),
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+        with self._lock:
+            self._records[job_id] = record
+        return record
 
     def update_status(self, job_id: str, status: str) -> JobRecord | None:
         """작업 상태를 갱신한다.
@@ -39,8 +53,13 @@ class InMemoryJobStore:
         Returns:
             JobRecord | None: 갱신된 레코드.
         """
-        # TODO: 저장된 레코드의 상태/시간을 갱신한다.
-        raise NotImplementedError("TODO: 작업 상태 갱신 구현")
+        with self._lock:
+            record = self._records.get(job_id)
+            if record is None:
+                return None
+            record.status = status
+            record.updated_at = datetime.now(UTC).isoformat()
+            return record
 
     def get(self, job_id: str) -> JobRecord | None:
         """작업 레코드를 조회한다.
@@ -51,5 +70,5 @@ class InMemoryJobStore:
         Returns:
             JobRecord | None: 작업 레코드.
         """
-        # TODO: job_id로 레코드를 조회한다.
-        raise NotImplementedError("TODO: 작업 조회 구현")
+        with self._lock:
+            return self._records.get(job_id)

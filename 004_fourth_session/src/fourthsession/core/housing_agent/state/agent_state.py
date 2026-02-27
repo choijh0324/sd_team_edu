@@ -7,6 +7,8 @@
 
 from pydantic import BaseModel, Field
 
+from fourthsession.core.housing_agent.const.agent_constants import HousingAgentConstants
+
 
 class HousingAgentState(BaseModel):
     """주택 에이전트 상태 모델."""
@@ -30,5 +32,17 @@ class HousingAgentState(BaseModel):
         Returns:
             HousingAgentState: 기본값으로 초기화된 상태.
         """
-        # TODO: 최소 필수 필드를 설정한 초기 상태를 만든다.
-        raise NotImplementedError("TODO: 상태 초기화 구현")
+        constants = HousingAgentConstants()
+        return cls(
+            question=None,
+            plan=None,
+            tool_results=[],
+            answer=None,
+            errors=[],
+            trace_id=None,
+            plan_valid=False,
+            retry_count=0,
+            max_retries=constants.default_max_retries,
+            tool_cards=[],
+            finalized=False,
+        )

@@ -5,14 +5,30 @@
 
 """MCP Tool 레지스트리 모듈."""
 
+from __future__ import annotations
+
+from fourthsession.core.common.tools.base_tool import BaseTool
+from fourthsession.core.housing_agent.tools.housing_list_tool import HousingListTool
+from fourthsession.core.housing_agent.tools.housing_price_stats_tool import (
+    HousingPriceStatsTool,
+)
+
 
 class HousingToolRegistry:
     """주택 에이전트 Tool 레지스트리."""
 
+    def __init__(self) -> None:
+        """레지스트리 내부 저장소를 초기화한다."""
+        self._tools: dict[str, BaseTool] = {}
+
     def register_tools(self) -> None:
         """Tool 목록을 등록한다."""
-        # TODO: Tool 인스턴스를 생성하고 레지스트리에 등록한다.
-        raise NotImplementedError("TODO: Tool 등록 구현")
+        tools: list[BaseTool] = [
+            HousingListTool(),
+            HousingPriceStatsTool(),
+        ]
+        for tool in tools:
+            self._tools[tool.name] = tool
 
     def list_tool_cards(self) -> list[dict]:
         """도구 카드 목록을 반환한다.
@@ -20,10 +36,22 @@ class HousingToolRegistry:
         Returns:
             list[dict]: 도구 카드 목록.
         """
-        # TODO: 스키마/힌트/예시를 포함한 도구 카드 생성 로직을 구현한다.
-        raise NotImplementedError("TODO: 도구 카드 목록 구현")
+        cards: list[dict] = []
+        for tool in self._tools.values():
+            card = {
+                "name": tool.name,
+                "description": tool.description,
+                "input_schema": tool.input_schema,
+            }
+            if hasattr(tool, "hints"):
+                card["hints"] = getattr(tool, "hints")
+            if hasattr(tool, "example_request"):
+                card["example_request"] = getattr(tool, "example_request")
+            if hasattr(tool, "example_response"):
+                card["example_response"] = getattr(tool, "example_response")
+            cards.append(card)
+        return cards
 
     def get_tool(self, name: str):
         """이름으로 Tool을 조회한다."""
-        # TODO: Tool 이름으로 인스턴스를 반환한다.
-        raise NotImplementedError("TODO: Tool 조회 구현")
+        return self._tools.get(name)

@@ -7,6 +7,10 @@
 
 from fastapi import APIRouter
 
+from fourthsession.api.housing_agent.const.api_constants import HousingApiConstants
+from fourthsession.api.housing_agent.model.job_status_response import (
+    HousingJobStatusResponse,
+)
 from fourthsession.api.housing_agent.service.housing_job_service import HousingJobService
 
 
@@ -27,7 +31,23 @@ class HousingJobStatusRouter:
         Returns:
             APIRouter: 구성된 라우터.
         """
-        # TODO: GET /housing/jobs/{job_id}/status 엔드포인트를 등록한다.
-        # - HousingJobStatusResponse 사용
-        # - HousingApiConstants.job_status_path, job_tag 반영
-        raise NotImplementedError("TODO: 작업 상태 라우터 구현")
+        constants = HousingApiConstants()
+        router = APIRouter(prefix=constants.api_prefix, tags=[constants.job_tag])
+        router.add_api_route(
+            path=constants.job_status_path,
+            endpoint=self.get_status,
+            methods=["GET"],
+            response_model=HousingJobStatusResponse,
+        )
+        return router
+
+    def get_status(self, job_id: str) -> HousingJobStatusResponse:
+        """주택 작업 상태 조회 요청을 처리한다.
+
+        Args:
+            job_id (str): 작업 식별자.
+
+        Returns:
+            HousingJobStatusResponse: 작업 상태 응답.
+        """
+        return self._service.get_status(job_id)

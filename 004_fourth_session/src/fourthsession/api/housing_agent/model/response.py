@@ -25,5 +25,33 @@ class HousingAgentResponse(BaseModel):
         Returns:
             HousingAgentResponse: 응답 모델.
         """
-        # TODO: 실행 결과를 응답 스키마로 매핑한다.
-        raise NotImplementedError("TODO: 응답 모델 생성 구현")
+        if not isinstance(result, dict):
+            raise TypeError("result는 dict 타입이어야 합니다.")
+
+        raw_answer = result.get("answer")
+        answer: str
+        if raw_answer is None:
+            answer = "요청 처리 결과가 비어 있습니다."
+        elif isinstance(raw_answer, str):
+            answer = raw_answer.strip() or "요청 처리 결과가 비어 있습니다."
+        else:
+            answer = str(raw_answer).strip() or "요청 처리 결과가 비어 있습니다."
+
+        trace_id = result.get("trace_id")
+        if trace_id is not None:
+            trace_id = str(trace_id).strip() or None
+
+        raw_metadata = result.get("metadata")
+        metadata: dict | None
+        if isinstance(raw_metadata, dict):
+            metadata = raw_metadata
+        else:
+            metadata = {
+                "tool_results": result.get("tool_results", []),
+                "errors": result.get("errors", []),
+                "plan": result.get("plan"),
+            }
+            if not metadata["tool_results"] and not metadata["errors"] and metadata["plan"] is None:
+                metadata = None
+
+        return cls(answer=answer, trace_id=trace_id, metadata=metadata)

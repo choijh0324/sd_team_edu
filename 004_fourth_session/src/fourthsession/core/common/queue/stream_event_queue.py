@@ -5,14 +5,31 @@
 
 """스트림 이벤트 큐 모듈."""
 
+from __future__ import annotations
+
+import json
+
+from fourthsession.core.common.queue.redis_connection_provider import (
+    RedisConnectionProvider,
+)
+
 
 class RedisStreamEventQueue:
     """Redis 기반 스트림 이벤트 큐."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        connection_provider: RedisConnectionProvider | None = None,
+        key_prefix: str = "housing:stream",
+    ) -> None:
         """스트림 이벤트 큐를 초기화한다."""
-        # TODO: RedisConnectionProvider와 key_prefix를 설정한다.
-        raise NotImplementedError("TODO: 스트림 큐 초기화 구현")
+        self._connection_provider = connection_provider or RedisConnectionProvider()
+        self._client = self._connection_provider.get_client()
+        self._key_prefix = key_prefix
+
+    def _build_key(self, job_id: str) -> str:
+        """작업 식별자 기반 Redis 키를 생성한다."""
+        return f"{self._key_prefix}:{job_id}"
 
     def push_event(self, job_id: str, event: dict) -> int:
         """스트림 이벤트를 적재한다.
@@ -24,8 +41,10 @@ class RedisStreamEventQueue:
         Returns:
             int: 스트림 큐 길이.
         """
-        # TODO: Redis 리스트에 rpush로 이벤트를 적재한다.
-        raise NotImplementedError("TODO: 스트림 이벤트 적재 구현")
+        stream_key = self._build_key(job_id)
+        serialized_event = json.dumps(event, ensure_ascii=False)
+        queue_length = self._client.rpush(stream_key, serialized_event)
+        return int(queue_length)
 
     def pop_event(self, job_id: str) -> dict | None:
         """스트림 이벤트를 가져온다.
@@ -36,5 +55,8 @@ class RedisStreamEventQueue:
         Returns:
             dict | None: 이벤트 데이터.
         """
-        # TODO: Redis 리스트에서 lpop으로 이벤트를 꺼낸다.
-        raise NotImplementedError("TODO: 스트림 이벤트 조회 구현")
+        stream_key = self._build_key(job_id)
+        raw_event = self._client.lpop(stream_key)
+        if raw_event is None:
+            return None
+        return dict(json.loads(raw_event))

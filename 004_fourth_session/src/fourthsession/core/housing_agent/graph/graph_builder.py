@@ -5,8 +5,14 @@
 
 """주택 에이전트 그래프 빌더 모듈."""
 
-from langgraph.graph import StateGraph
+from langgraph.graph import END, StateGraph
 
+from fourthsession.core.housing_agent.nodes.answer_node import AnswerNode
+from fourthsession.core.housing_agent.nodes.execute_node import ExecuteNode
+from fourthsession.core.housing_agent.nodes.feedback_node import FeedbackLoopNode
+from fourthsession.core.housing_agent.nodes.merge_node import MergeResultNode
+from fourthsession.core.housing_agent.nodes.plan_node import PlanNode
+from fourthsession.core.housing_agent.nodes.validate_plan_node import ValidatePlanNode
 from fourthsession.core.housing_agent.state.agent_state import HousingAgentState
 
 
@@ -19,6 +25,34 @@ class HousingAgentGraphBuilder:
         Returns:
             StateGraph: 구성된 LangGraph 그래프.
         """
-        # TODO: 노드 추가, 엣지 연결, 시작/종료 노드 구성을 구현한다.
-        # - Plan → Validate → Execute → Merge → Feedback → End
-        raise NotImplementedError("TODO: 그래프 빌더 구현")
+        graph = StateGraph(HousingAgentState)
+
+        graph.add_node("plan", PlanNode())
+        graph.add_node("validate", ValidatePlanNode())
+        graph.add_node("execute", ExecuteNode())
+        graph.add_node("merge", MergeResultNode())
+        graph.add_node("feedback", FeedbackLoopNode())
+        graph.add_node("answer", AnswerNode())
+
+        graph.set_entry_point("plan")
+        graph.add_edge("plan", "validate")
+        graph.add_edge("validate", "execute")
+        graph.add_edge("execute", "merge")
+        graph.add_edge("merge", "feedback")
+        graph.add_conditional_edges(
+            "feedback",
+            self._route_after_feedback,
+            {
+                "plan": "plan",
+                "answer": "answer",
+            },
+        )
+        graph.add_edge("answer", END)
+        return graph
+
+    def _route_after_feedback(self, state: HousingAgentState | dict) -> str:
+        """피드백 결과에 따라 다음 노드를 선택한다."""
+        finalized = state.get("finalized") if isinstance(state, dict) else state.finalized
+        if bool(finalized):
+            return "answer"
+        return "plan"

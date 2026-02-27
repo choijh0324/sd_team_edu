@@ -5,6 +5,8 @@
 
 """관찰/피드백 노드 모듈."""
 
+from __future__ import annotations
+
 from fourthsession.core.housing_agent.state.agent_state import HousingAgentState
 
 
@@ -20,5 +22,39 @@ class FeedbackLoopNode:
         Returns:
             dict: 상태 업데이트 딕셔너리.
         """
-        # TODO: 답변 품질을 검증하고 재계획 여부를 판단한다.
-        raise NotImplementedError("TODO: 피드백 노드 구현")
+        errors = list(state.errors or [])
+        answer = state.answer
+        tool_results = list(state.tool_results or [])
+
+        has_meaningful_answer = isinstance(answer, str) and bool(answer.strip())
+        can_retry = state.retry_count < state.max_retries
+
+        if not has_meaningful_answer:
+            errors.append("피드백 단계: 답변 품질 미달로 재계획이 필요합니다.")
+            if can_retry:
+                return {
+                    "errors": errors,
+                    "finalized": False,
+                    "retry_count": state.retry_count + 1,
+                }
+
+            if tool_results:
+                answer = "도구 실행은 완료되었지만 최종 답변 생성에 실패했습니다."
+            elif errors:
+                answer = "요청 처리 중 오류가 누적되어 답변을 생성하지 못했습니다."
+            else:
+                answer = "요청을 처리했지만 반환할 결과가 없습니다."
+
+        if errors and not tool_results and can_retry:
+            errors.append("피드백 단계: 실행 결과 부족으로 재계획을 시도합니다.")
+            return {
+                "errors": errors,
+                "finalized": False,
+                "retry_count": state.retry_count + 1,
+            }
+
+        return {
+            "answer": answer,
+            "errors": errors,
+            "finalized": True,
+        }

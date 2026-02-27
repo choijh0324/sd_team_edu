@@ -6,6 +6,7 @@
 """워커 베이스 모듈."""
 
 from abc import ABC, abstractmethod
+import time
 
 
 class WorkerBase(ABC):
@@ -18,6 +19,7 @@ class WorkerBase(ABC):
             poll_interval (float): 폴링 간격(초).
         """
         self._poll_interval = poll_interval
+        self._running = False
 
     def run(self) -> None:
         """워커 루프를 실행한다.
@@ -26,12 +28,15 @@ class WorkerBase(ABC):
         - run_once()를 반복 호출하는 루프를 구현한다.
         - 처리할 작업이 없으면 poll_interval만큼 대기한다.
         """
-        raise NotImplementedError("TODO: 워커 실행 루프 구현")
+        self._running = True
+        while self._running:
+            processed = self.run_once()
+            if not processed:
+                time.sleep(self._poll_interval)
 
     def stop(self) -> None:
         """워커를 중지한다."""
-        # TODO: 워커 중지 플래그를 구현한다.
-        raise NotImplementedError("TODO: 워커 중지 구현")
+        self._running = False
 
     @abstractmethod
     def run_once(self) -> bool:

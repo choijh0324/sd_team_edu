@@ -7,6 +7,10 @@
 
 from fastapi import APIRouter
 
+from fourthsession.api.housing_agent.const.api_constants import HousingApiConstants
+from fourthsession.api.housing_agent.model.job_cancel_response import (
+    HousingJobCancelResponse,
+)
 from fourthsession.api.housing_agent.service.housing_job_service import HousingJobService
 
 
@@ -27,7 +31,23 @@ class HousingJobCancelRouter:
         Returns:
             APIRouter: 구성된 라우터.
         """
-        # TODO: POST /housing/jobs/{job_id}/cancel 엔드포인트를 등록한다.
-        # - HousingJobCancelResponse 사용
-        # - HousingApiConstants.job_cancel_path, job_tag 반영
-        raise NotImplementedError("TODO: 작업 취소 라우터 구현")
+        constants = HousingApiConstants()
+        router = APIRouter(prefix=constants.api_prefix, tags=[constants.job_tag])
+        router.add_api_route(
+            path=constants.job_cancel_path,
+            endpoint=self.cancel_job,
+            methods=["POST"],
+            response_model=HousingJobCancelResponse,
+        )
+        return router
+
+    def cancel_job(self, job_id: str) -> HousingJobCancelResponse:
+        """주택 작업 취소 요청을 처리한다.
+
+        Args:
+            job_id (str): 작업 식별자.
+
+        Returns:
+            HousingJobCancelResponse: 작업 취소 응답.
+        """
+        return self._service.cancel_job(job_id)

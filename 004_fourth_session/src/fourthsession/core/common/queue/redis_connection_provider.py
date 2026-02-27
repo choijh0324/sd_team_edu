@@ -5,6 +5,8 @@
 
 """Redis 연결 제공자 모듈."""
 
+import os
+
 import redis
 
 
@@ -19,8 +21,9 @@ class RedisConnectionProvider:
             port (int | None): Redis 포트.
             db (int | None): Redis DB 인덱스.
         """
-        # TODO: 환경 변수 기반 기본값을 설정한다.
-        raise NotImplementedError("TODO: Redis 연결 설정 구현")
+        self._host = host or os.getenv("REDIS_HOST", "localhost")
+        self._port = port if port is not None else int(os.getenv("REDIS_PORT", "6379"))
+        self._db = db if db is not None else int(os.getenv("REDIS_DB", "0"))
 
     def get_client(self) -> redis.Redis:
         """Redis 클라이언트를 반환한다.
@@ -28,5 +31,9 @@ class RedisConnectionProvider:
         Returns:
             redis.Redis: Redis 클라이언트.
         """
-        # TODO: redis.Redis 인스턴스를 생성한다.
-        raise NotImplementedError("TODO: Redis 클라이언트 생성 구현")
+        return redis.Redis(
+            host=self._host,
+            port=self._port,
+            db=self._db,
+            decode_responses=True,
+        )

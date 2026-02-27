@@ -11,12 +11,11 @@ class HousingApiConstants:
 
     def __init__(self) -> None:
         """상수 값을 초기화한다."""
-        # TODO: 아래 항목을 프로젝트 정책에 맞게 채운다.
-        # - api_prefix: 예) "/api/v1"
-        # - agent_path: 예) "/housing/agent"
-        # - job_path: 예) "/housing/jobs"
-        # - job_cancel_path: 예) "/housing/jobs/{job_id}/cancel"
-        # - job_status_path: 예) "/housing/jobs/{job_id}/status"
-        # - job_stream_path: 예) "/housing/jobs/{job_id}/stream"
-        # - tag / job_tag: 라우터 태그
-        raise NotImplementedError("TODO: API 상수 정의 구현")
+        self.api_prefix = "/api/v1"
+        self.agent_path = "/housing/agent"
+        self.job_path = "/housing/jobs"
+        self.job_cancel_path = "/housing/jobs/{job_id}/cancel"
+        self.job_status_path = "/housing/jobs/{job_id}/status"
+        self.job_stream_path = "/housing/jobs/{job_id}/stream"
+        self.tag = "housing-agent"
+        self.job_tag = "housing-job"

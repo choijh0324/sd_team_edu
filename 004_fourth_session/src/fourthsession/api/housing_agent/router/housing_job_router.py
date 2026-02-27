@@ -7,6 +7,9 @@
 
 from fastapi import APIRouter
 
+from fourthsession.api.housing_agent.const.api_constants import HousingApiConstants
+from fourthsession.api.housing_agent.model.job_request import HousingJobRequest
+from fourthsession.api.housing_agent.model.job_response import HousingJobResponse
 from fourthsession.api.housing_agent.service.housing_job_service import HousingJobService
 
 
@@ -27,7 +30,23 @@ class HousingJobRouter:
         Returns:
             APIRouter: 구성된 라우터.
         """
-        # TODO: POST /housing/jobs 엔드포인트를 등록한다.
-        # - HousingJobRequest/Response 사용
-        # - HousingApiConstants.job_path, job_tag 반영
-        raise NotImplementedError("TODO: 작업 생성 라우터 구현")
+        constants = HousingApiConstants()
+        router = APIRouter(prefix=constants.api_prefix, tags=[constants.job_tag])
+        router.add_api_route(
+            path=constants.job_path,
+            endpoint=self.create_job,
+            methods=["POST"],
+            response_model=HousingJobResponse,
+        )
+        return router
+
+    def create_job(self, request: HousingJobRequest) -> HousingJobResponse:
+        """주택 작업 생성 요청을 처리한다.
+
+        Args:
+            request (HousingJobRequest): 작업 생성 요청 모델.
+
+        Returns:
+            HousingJobResponse: 작업 생성 응답 모델.
+        """
+        return self._service.create_job(request)
